@@ -30,6 +30,13 @@ button { text-transform: none; background-color: transparent; background-image: 
   cursor: move;
 }
 
+.clipping-shape {
+    border: 2px dashed #dc2626; /* red-600 */
+    border-radius: 50%;
+    background-color: rgba(220, 38, 38, 0.2);
+    cursor: move;
+}
+
 /* Change cursor to text-edit icon and ensure text is interactive */
 .draggable [data-role="text-content"] {
   cursor: text;

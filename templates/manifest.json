@@ -1,8 +1,8 @@
 {
   "templates": [
-    "templates/Bravo_Summer.json",
-    "templates/Laisha.json",
-    "templates/Future_Tech.json",
-    "templates/Hidden_Traveler.json"
+    "Bravo_Summer.json",
+    "Laisha.json",
+    "Future_Tech.json",
+    "Hidden_Traveler.json"
   ]
 }

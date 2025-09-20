@@ -434,7 +434,7 @@ class MagazineEditor {
             
             const manifest = await manifestResponse.json();
             const templatePromises = manifest.templates.map(url =>
-                fetch(url).then(res => res.ok ? res.json() : Promise.reject(`Failed to load ${url}`))
+                fetch(`templates/${url}`).then(res => res.ok ? res.json() : Promise.reject(`Failed to load templates/${url}`))
             );
             const defaultTemplates = await Promise.all(templatePromises);
             
@@ -676,7 +676,7 @@ class MagazineEditor {
             width: el.width ? `${el.width * scale}px` : 'auto',
             height: el.height ? `${el.height * scale}px` : 'auto',
             transform: `rotate(${el.rotation}deg)`,
-            zIndex: zIndex,
+            zIndex: el.type === 'clipping-shape' ? 999 : zIndex,
         });
 
         if (el.id === this.state.selectedElementId && scale === 1) {
@@ -688,6 +688,8 @@ class MagazineEditor {
         } else if (el.type === 'image') {
             domEl.classList.add('element-type-image');
             this._applyImageStyles(domEl, el);
+        } else if (el.type === 'clipping-shape') {
+            domEl.classList.add('clipping-shape');
         }
 
         if (el.id === this.state.selectedElementId && scale === 1) {
@@ -803,7 +805,12 @@ class MagazineEditor {
     
     _createEditorSidebar(el) {
         const fragment = document.createDocumentFragment();
-        const typeName = el.type === 'text' ? 'טקסט' : 'תמונה';
+        const typeNameMap = {
+            'text': 'טקסט',
+            'image': 'תמונה',
+            'clipping-shape': 'צורת חיתוך'
+        };
+        const typeName = typeNameMap[el.type] || 'אלמנט';
         const header = this._createSidebarHeader(`עריכת ${typeName}`);
         fragment.appendChild(header);
 
@@ -811,9 +818,13 @@ class MagazineEditor {
             fragment.appendChild(this._createTextEditorControls(el));
         } else if (el.type === 'image') {
             fragment.appendChild(this._createImageEditorControls(el));
+        } else if (el.type === 'clipping-shape') {
+            fragment.appendChild(this._createClippingShapeEditorControls(el));
         }
         
-        fragment.appendChild(this._createLayerControls());
+        if (el.type !== 'clipping-shape') {
+             fragment.appendChild(this._createLayerControls());
+        }
         fragment.appendChild(this._createDeleteButton());
 
         return fragment;
@@ -915,6 +926,18 @@ class MagazineEditor {
                 <div class="flex-1">${this._createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
             </div>
             <button data-action="${buttonAction}" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">${buttonText}</button>
+        `;
+        return container;
+    }
+
+    _createClippingShapeEditorControls(el) {
+        const container = document.createElement('div');
+        container.innerHTML = `
+            <div class="flex gap-4 mb-3">
+                <div class="flex-1">${this._createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
+                <div class="flex-1">${this._createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
+            </div>
+            <button data-action="perform-clip" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">בצע חיתוך</button>
         `;
         return container;
     }
@@ -1098,6 +1121,7 @@ class MagazineEditor {
                 this._updateSelectedElement({ textAlign: align });
                 this.renderSidebar();
             },
+            'perform-clip': () => this._performClip(),
         };
         
         if (actions[action]) {
@@ -1281,7 +1305,7 @@ class MagazineEditor {
         
         this.renderCover();
     
-        if (this.interactionState.action === 'resize' && this.interactionState.element.type === 'image') {
+        if (this.interactionState.action === 'resize' && (this.interactionState.element.type === 'image' || this.interactionState.element.type === 'clipping-shape')) {
             const el = this.interactionState.element;
             const widthInput = this.dom.sidebarContent.querySelector('[data-property="width"]');
             const heightInput = this.dom.sidebarContent.querySelector('[data-property="height"]');
@@ -1412,9 +1436,12 @@ class MagazineEditor {
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
             bgColor: 'transparent', rotation: 0, shape: 'rectangle', textAlign: 'center',
-        } : {
+        } : type === 'image' ? {
             id: `el_${Date.now()}`, type: 'image', src: null,
             position: { x: 50, y: 100 }, width: 200, height: 150, rotation: 0
+        } : {
+            id: `el_${Date.now()}`, type: 'clipping-shape', shape: 'ellipse',
+            position: { x: 100, y: 150 }, width: 250, height: 250, rotation: 0
         };
         this.state.elements.push(newEl);
         this.state.selectedElementId = newEl.id;
@@ -1584,6 +1611,76 @@ class MagazineEditor {
         this._updateSelectedElement({ src: dataUrl });
         this._closeImageEditorModal();
         this.renderSidebar(); // Re-render sidebar to update buttons
+    }
+
+    _performClip() {
+        const clipEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        if (!clipEl) return;
+
+        const targetImageEl = [...this.state.elements]
+            .reverse()
+            .find(el => {
+                if (el.type !== 'image' || el.id === clipEl.id || !el.src) return false;
+
+                const clipRect = { x: clipEl.position.x, y: clipEl.position.y, width: clipEl.width, height: clipEl.height };
+                const imageRect = { x: el.position.x, y: el.position.y, width: el.width, height: el.height };
+                
+                return (
+                    clipRect.x < imageRect.x + imageRect.width &&
+                    clipRect.x + clipRect.width > imageRect.x &&
+                    clipRect.y < imageRect.y + imageRect.height &&
+                    clipRect.y + clipRect.height > imageRect.y
+                );
+            });
+
+        if (!targetImageEl) {
+            alert('יש למקם את צורת החיתוך מעל אלמנט של תמונה.');
+            return;
+        }
+
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(img, 0, 0);
+
+            const scaleX = img.naturalWidth / targetImageEl.width;
+            const scaleY = img.naturalHeight / targetImageEl.height;
+
+            const ellipseCenterX = (clipEl.position.x + clipEl.width / 2 - targetImageEl.position.x) * scaleX;
+            const ellipseCenterY = (clipEl.position.y + clipEl.height / 2 - targetImageEl.position.y) * scaleY;
+            const radiusX = (clipEl.width / 2) * scaleX;
+            const radiusY = (clipEl.height / 2) * scaleY;
+            const rotationRad = clipEl.rotation * (Math.PI / 180);
+
+            ctx.globalCompositeOperation = 'destination-out';
+            
+            ctx.save();
+            ctx.translate(ellipseCenterX, ellipseCenterY);
+            ctx.rotate(rotationRad);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+
+            const newDataUrl = canvas.toDataURL('image/png');
+            
+            this.state.elements = this.state.elements
+                .map(el => el.id === targetImageEl.id ? { ...el, src: newDataUrl } : el)
+                .filter(el => el.id !== clipEl.id);
+
+            this.state.selectedElementId = null;
+            this._setDirty(true);
+            this.render();
+        };
+        img.onerror = () => {
+            alert('שגיאה בטעינת התמונה לחיתוך.');
+        };
+        img.src = targetImageEl.src;
     }
 }
 
