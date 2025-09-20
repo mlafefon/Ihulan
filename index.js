@@ -1,6 +1,8 @@
 
 
 
+
+
 /**
  * @file index.js
  * Refactored main script for the Magazine Cover Editor.
@@ -412,6 +414,12 @@ class MagazineEditor {
             replaceImageBtn: document.getElementById('replace-image-btn'),
             sourceRes: document.getElementById('source-res'),
             targetRes: document.getElementById('target-res'),
+            brightnessSlider: document.getElementById('brightness-slider'),
+            contrastSlider: document.getElementById('contrast-slider'),
+            saturationSlider: document.getElementById('saturation-slider'),
+            grayscaleSlider: document.getElementById('grayscale-slider'),
+            sepiaSlider: document.getElementById('sepia-slider'),
+            resetFiltersBtn: document.getElementById('reset-filters-btn'),
         };
     }
 
@@ -768,7 +776,7 @@ class MagazineEditor {
             domEl.appendChild(img);
         } else {
             domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
         }
     }
 
@@ -811,8 +819,26 @@ class MagazineEditor {
             'clipping-shape': 'צורת חיתוך'
         };
         const typeName = typeNameMap[el.type] || 'אלמנט';
+
+        const headerWrapper = document.createElement('div');
+        headerWrapper.className = "mb-4 pb-4 border-b border-slate-700";
+
         const header = this._createSidebarHeader(`עריכת ${typeName}`);
-        fragment.appendChild(header);
+        headerWrapper.appendChild(header);
+
+        if (el.type !== 'clipping-shape') {
+            const idEditorDiv = document.createElement('div');
+            idEditorDiv.className = "mt-4";
+            idEditorDiv.innerHTML = `
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">ID של האלמנט</label>
+                    <input type="text" data-property="id" value="${el.id}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;" />
+                </div>
+            `;
+            headerWrapper.appendChild(idEditorDiv);
+        }
+        
+        fragment.appendChild(headerWrapper);
 
         if (el.type === 'text') {
             fragment.appendChild(this._createTextEditorControls(el));
@@ -824,8 +850,8 @@ class MagazineEditor {
         
         if (el.type !== 'clipping-shape') {
              fragment.appendChild(this._createLayerControls());
+             fragment.appendChild(this._createDeleteButton());
         }
-        fragment.appendChild(this._createDeleteButton());
 
         return fragment;
     }
@@ -833,7 +859,7 @@ class MagazineEditor {
     // --- Sidebar Control Builders ---
     _createSidebarHeader(title) {
         const div = document.createElement('div');
-        div.className = "flex justify-between items-center gap-4 mb-4 pb-4 border-b border-slate-700";
+        div.className = "flex justify-between items-center gap-4";
         div.innerHTML = `
             <h3 class="text-xl font-bold text-white flex-grow truncate">${title}</h3>
             <button data-action="deselect-element" title="ביטול בחירה" class="flex-shrink-0 p-1 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors">
@@ -1080,13 +1106,46 @@ class MagazineEditor {
         e.target.value = null;
     }
     
+    _deselectAndCleanup() {
+        const oldSelectedId = this.state.selectedElementId;
+        if (oldSelectedId) {
+            const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
+            if (oldElement && oldElement.type === 'clipping-shape') {
+                this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
+            }
+        }
+        this.state.selectedElementId = null;
+        this.state.inlineEditingElementId = null;
+        this.render();
+    }
+    
     _handleSidebarInteraction(e) {
         const { target } = e;
-        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        const oldSelectedId = this.state.selectedElementId;
+        const selectedEl = this.state.elements.find(el => el.id === oldSelectedId);
         
         if (target.dataset.property && selectedEl && e.type !== 'click') {
             const prop = target.dataset.property;
             let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseFloat(target.value) : target.value);
+
+            if (prop === 'id') {
+                const newId = String(value).trim();
+                if (!newId) {
+                    alert('ID של האלמנט לא יכול להיות ריק.');
+                    target.value = oldSelectedId;
+                    return;
+                }
+                if (newId !== oldSelectedId && this.state.elements.some(el => el.id === newId)) {
+                    alert('ה-ID של האלמנט חייב להיות ייחודי.');
+                    target.value = oldSelectedId;
+                    return;
+                }
+                selectedEl.id = newId;
+                this.state.selectedElementId = newId;
+                this._setDirty(true);
+                this.renderCover();
+                return;
+            }
 
             if (prop === 'bgTransparent') {
                 const newBgColor = value ? 'transparent' : (this.dom.sidebarContent.querySelector('[data-property="bgColor"]')?.value || '#FFFFFF');
@@ -1106,7 +1165,7 @@ class MagazineEditor {
         const action = actionTarget.dataset.action;
 
         const actions = {
-            'deselect-element': () => { this.state.selectedElementId = null; this.render(); },
+            'deselect-element': () => { this._deselectAndCleanup() },
             'add-element': () => this._addElement(actionTarget.dataset.type),
             'delete': () => this._deleteSelectedElement(),
             'add-image': () => this.dom.elementImageUploadInput.click(),
@@ -1167,22 +1226,30 @@ class MagazineEditor {
     _handleCoverClick(e) {
         if (e.target.closest('[contenteditable="true"]')) return;
         const draggableEl = e.target.closest('.draggable');
+        const oldSelectedId = this.state.selectedElementId;
         
         if (draggableEl) {
-            const elementId = draggableEl.dataset.id;
-            const elementData = this.state.elements.find(el => el.id === elementId);
-            this.state.selectedElementId = elementId;
+            const newElementId = draggableEl.dataset.id;
+            const newElementData = this.state.elements.find(el => el.id === newElementId);
 
-            if (elementData?.type === 'text') {
-                this._startInlineEditing(elementData, draggableEl, e);
+            // If selecting a NEW element and the OLD one was a clipping shape, remove it.
+            if (oldSelectedId && oldSelectedId !== newElementId) {
+                const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
+                if (oldElement && oldElement.type === 'clipping-shape') {
+                    this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
+                }
+            }
+
+            this.state.selectedElementId = newElementId;
+
+            if (newElementData?.type === 'text') {
+                this._startInlineEditing(newElementData, draggableEl, e);
             } else {
                 this.state.inlineEditingElementId = null;
                 this.render();
             }
         } else {
-            this.state.selectedElementId = null;
-            this.state.inlineEditingElementId = null;
-            this.render();
+            this._deselectAndCleanup();
         }
     }
 
@@ -1474,7 +1541,8 @@ class MagazineEditor {
             file: (fileOrSrc instanceof File) ? fileOrSrc : null,
             image, imageUrl, targetElement,
             zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
-            isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 }
+            isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 },
+            filters: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
         };
         
         this.dom.imagePreviewImg.src = imageUrl;
@@ -1505,6 +1573,7 @@ class MagazineEditor {
         zoomSlider.value = minZoom;
         zoomSlider.step = (zoomSlider.max - minZoom) / 100;
         
+        this._resetFilters();
         this._centerImageInFrame();
         this._updateImageEditorPreview();
         
@@ -1517,10 +1586,14 @@ class MagazineEditor {
         }
         this.imageEditorState = null;
         this.dom.imageEditorModal.classList.add('hidden');
+        this.dom.imagePreviewImg.style.filter = '';
         this.dom.imagePreviewFrame.removeEventListener('mousedown', this._imagePanStart);
         document.removeEventListener('mousemove', this._imagePanMove);
         document.removeEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.removeEventListener('input', this._imageZoom);
+        const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
+        sliders.forEach(slider => slider.removeEventListener('input', this._handleFilterChange));
+        this.dom.resetFiltersBtn.removeEventListener('click', this._resetFilters);
     }
 
     _setupImageEditorEvents() {
@@ -1528,11 +1601,17 @@ class MagazineEditor {
         this._imagePanMove = this._imagePanMove.bind(this);
         this._imagePanEnd = this._imagePanEnd.bind(this);
         this._imageZoom = this._imageZoom.bind(this);
+        this._handleFilterChange = this._handleFilterChange.bind(this);
+        this._resetFilters = this._resetFilters.bind(this);
 
         this.dom.imagePreviewFrame.addEventListener('mousedown', this._imagePanStart);
         document.addEventListener('mousemove', this._imagePanMove);
         document.addEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.addEventListener('input', this._imageZoom);
+
+        const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
+        sliders.forEach(slider => slider.addEventListener('input', this._handleFilterChange));
+        this.dom.resetFiltersBtn.addEventListener('click', this._resetFilters);
     }
     
     _centerImageInFrame() {
@@ -1544,11 +1623,43 @@ class MagazineEditor {
         this.imageEditorState.pan = { x: (frame.offsetWidth - scaledW) / 2, y: (frame.offsetHeight - scaledH) / 2 };
         this._clampImagePan();
     }
+
+    _getFilterString() {
+        if (!this.imageEditorState || !this.imageEditorState.filters) return '';
+        const { brightness, contrast, saturation, grayscale, sepia } = this.imageEditorState.filters;
+        return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
+    }
+    
+    _updateFilterSliders() {
+        if (!this.imageEditorState || !this.imageEditorState.filters) return;
+        const { brightness, contrast, saturation, grayscale, sepia } = this.imageEditorState.filters;
+        this.dom.brightnessSlider.value = brightness;
+        this.dom.contrastSlider.value = contrast;
+        this.dom.saturationSlider.value = saturation;
+        this.dom.grayscaleSlider.value = grayscale;
+        this.dom.sepiaSlider.value = sepia;
+    }
+    
+    _handleFilterChange(e) {
+        if (!this.imageEditorState) return;
+        const filter = e.target.dataset.filter;
+        const value = e.target.value;
+        this.imageEditorState.filters[filter] = parseInt(value, 10);
+        this._updateImageEditorPreview();
+    }
+
+    _resetFilters() {
+        if (!this.imageEditorState) return;
+        this.imageEditorState.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
+        this._updateFilterSliders();
+        this._updateImageEditorPreview();
+    }
     
     _updateImageEditorPreview() {
         if (!this.imageEditorState) return;
         const { zoom, pan } = this.imageEditorState;
         this.dom.imagePreviewImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+        this.dom.imagePreviewImg.style.filter = this._getFilterString();
     }
     
     _imageZoom(e) {
@@ -1605,6 +1716,7 @@ class MagazineEditor {
         canvas.width = targetElement.width;
         canvas.height = targetElement.height;
         const ctx = canvas.getContext('2d');
+        ctx.filter = this._getFilterString();
         ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, targetElement.width, targetElement.height);
         
         const dataUrl = canvas.toDataURL(file?.type || 'image/png');

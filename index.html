@@ -43,8 +43,16 @@
                 <div class="py-4 border-b border-slate-700">
                      <p class="text-slate-400 mb-4">בחר אלמנט מהשער כדי לערוך אותו, או הוסף אלמנט חדש.</p>
                      <div class="space-y-3">
-                        <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700">הוסף טקסט</button>
-                        <button data-action="add-element" data-type="image" class="sidebar-btn bg-sky-600 hover:bg-sky-700">הוסף תמונה</button>
+                        <div class="flex gap-3">
+                            <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h14a1 1 0 010 2h-6v13a1 1 0 01-2 0V6H5a1 1 0 110-2z"/></svg>
+                                <span>הוסף טקסט</span>
+                            </button>
+                            <button data-action="add-element" data-type="image" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                <span>הוסף תמונה</span>
+                            </button>
+                        </div>
                         <button data-action="add-element" data-type="clipping-shape" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">הוסף צורת חיתוך</button>
                     </div>
                 </div>
@@ -120,6 +128,30 @@
                     <div class="mt-4">
                         <label for="zoom-slider" class="block text-sm font-medium text-slate-300 mb-1">זום</label>
                         <input id="zoom-slider" type="range" min="1" max="3" step="0.01" value="1" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div id="image-filter-controls" class="mt-4 pt-4 border-t border-slate-700 space-y-2">
+                        <h3 class="text-lg font-semibold text-slate-300 mb-2">פילטרים</h3>
+                        <div>
+                            <label for="brightness-slider" class="block text-sm font-medium text-slate-300 mb-1">בהירות</label>
+                            <input id="brightness-slider" data-filter="brightness" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div>
+                            <label for="contrast-slider" class="block text-sm font-medium text-slate-300 mb-1">ניגודיות</label>
+                            <input id="contrast-slider" data-filter="contrast" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div>
+                            <label for="saturation-slider" class="block text-sm font-medium text-slate-300 mb-1">רוויה</label>
+                            <input id="saturation-slider" data-filter="saturation" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div>
+                            <label for="grayscale-slider" class="block text-sm font-medium text-slate-300 mb-1">גווני אפור</label>
+                            <input id="grayscale-slider" data-filter="grayscale" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div>
+                            <label for="sepia-slider" class="block text-sm font-medium text-slate-300 mb-1">ספיה</label>
+                            <input id="sepia-slider" data-filter="sepia" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <button id="reset-filters-btn" class="w-full mt-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס פילטרים</button>
                     </div>
                 </aside>
             </div>
