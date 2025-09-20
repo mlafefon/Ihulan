@@ -1,0 +1,8 @@
+{
+  "templates": [
+    "templates/Bravo_Summer.json",
+    "templates/Winter_Style.json",
+    "templates/Future_Tech.json",
+    "templates/Hidden_Traveler.json"
+  ]
+}

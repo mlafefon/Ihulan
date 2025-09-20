@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>יוצר שערי מגזין</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Assistant:wght@400;700&family=David+Libre:wght@400;700&family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@400;700;900&family=Rubik:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body class="bg-slate-900 text-white">
+    <div class="min-h-screen bg-slate-900 flex flex-col lg:flex-row items-start justify-center p-4 lg:p-8 gap-8">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-full lg:w-96 bg-slate-800 p-6 rounded-lg shadow-lg flex flex-col space-y-6 self-start">
+            <div>
+                <h1 class="text-3xl font-bold text-white">יוצר שערי מגזין</h1>
+                <p class="text-slate-400 mt-2">
+                    עצבו את שער המגזין שלכם. לחצו על אלמנט כדי לבחור אותו, ולחצו שוב על טקסט כדי לערוך אותו ישירות.
+                </p>
+            </div>
+
+            <div id="sidebar-content" class="hidden flex-grow overflow-y-auto pr-2 space-y-4 min-h-[200px]">
+                <!-- Dynamic content for editor mode will be injected here -->
+            </div>
+
+            <div id="template-actions">
+                 <div class="py-4 border-t border-b border-slate-700">
+                    <div>
+                        <label for="template-name-input" class="block text-sm font-medium text-slate-300 mb-1">שם התבנית</label>
+                        <input type="text" id="template-name-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" placeholder="הכנס שם לתבנית...">
+                    </div>
+                </div>
+
+                <div class="py-4 border-b border-slate-700">
+                     <p class="text-slate-400 mb-4">בחר אלמנט מהשער כדי לערוך אותו, או הוסף אלמנט חדש.</p>
+                     <div class="space-y-3">
+                        <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700">הוסף טקסט</button>
+                        <button data-action="add-element" data-type="image" class="sidebar-btn bg-sky-600 hover:bg-sky-700">הוסף תמונה</button>
+                    </div>
+                </div>
+
+                <div class="space-y-3 pt-4">
+                     <button id="change-template-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700">
+                        בחר תבנית
+                    </button>
+                    <div class="flex gap-3">
+                        <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700 flex-1">
+                            שמור שינויים
+                        </button>
+                        <button id="export-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500 flex-1">
+                            שמור כקובץ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+             <input id="element-image-upload" type="file" accept="image/*" class="hidden" />
+
+        </aside>
+
+        <!-- Magazine Cover -->
+        <main class="flex-1 flex items-center justify-center w-full">
+            <div id="magazine-cover" class="w-full max-w-[700px] shadow-2xl mx-auto">
+                <div id="cover-boundary" class="relative w-full h-full overflow-hidden bg-slate-700">
+                    <!-- Cover content will be dynamically generated here -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Template Selection Modal -->
+    <div id="template-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="template-modal-title">
+        <div id="template-modal-overlay" class="absolute inset-0"></div>
+        <div class="bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col relative">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="template-modal-title" class="text-2xl font-bold text-white">בחר תבנית עיצוב</h2>
+                <button id="modal-close-btn" class="text-slate-400 hover:text-white transition-colors" aria-label="Close modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="template-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto p-2">
+                <!-- Template previews will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Editor Modal -->
+    <div id="image-editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="image-editor-title">
+        <div class="bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-6xl h-[95vh] max-h-[95vh] flex flex-col relative">
+            <h2 id="image-editor-title" class="text-2xl font-bold text-white mb-4">עריכת תמונה</h2>
+            <div class="flex-grow flex gap-6 min-h-0">
+                <!-- Preview Area -->
+                <div id="image-preview-container" class="flex-1 flex items-center justify-center bg-slate-900 rounded-md">
+                    <div id="image-preview-frame" class="relative overflow-hidden bg-slate-700">
+                        <img id="image-preview-img" class="absolute top-0 left-0" style="transform-origin: 0 0;">
+                    </div>
+                </div>
+                <!-- Controls -->
+                <aside class="w-64 flex flex-col">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-300">מידע</h3>
+                        <p class="text-sm text-slate-400">רזולוציית מקור: <span id="source-res"></span></p>
+                        <p class="text-sm text-slate-400">רזולוציית יעד: <span id="target-res"></span></p>
+                    </div>
+                    <div class="mt-4">
+                        <label for="zoom-slider" class="block text-sm font-medium text-slate-300 mb-1">זום</label>
+                        <input id="zoom-slider" type="range" min="1" max="3" step="0.01" value="1" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </aside>
+            </div>
+             <div class="flex-shrink-0 flex gap-3 pt-4 border-t border-slate-700 mt-4">
+                <button id="cancel-crop-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500 flex-1">ביטול</button>
+                <button id="replace-image-btn" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1">החלף תמונה</button>
+                <button id="confirm-crop-btn" class="sidebar-btn bg-green-600 hover:bg-green-700 flex-1">אישור וחיתוך</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module" src="index.js"></script>
+</body>
+</html>

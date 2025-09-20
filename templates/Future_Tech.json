@@ -1,0 +1,61 @@
+{
+  "name": "Future Tech",
+  "width": 700,
+  "height": 906,
+  "backgroundColor": "#1A202C",
+  "elements": [
+    {
+      "id": "mainTitle-3",
+      "type": "text",
+      "text": "TECH",
+      "position": { "x": 180, "y": 50 },
+      "fontSize": 160,
+      "color": "#00FF00",
+      "fontWeight": 900,
+      "fontFamily": "Anton",
+      "shadow": true,
+      "bgColor": "transparent",
+      "rotation": 0
+    },
+    {
+      "id": "headline-3",
+      "type": "text",
+      "text": "הגאדג'טים של העתיד",
+      "position": { "x": 200, "y": 220 },
+      "fontSize": 48,
+      "color": "#00FF00",
+      "fontWeight": 700,
+      "fontFamily": "Heebo",
+      "shadow": false,
+      "bgColor": "transparent",
+      "rotation": 0
+    },
+    {
+      "id": "subHeadline-3",
+      "type": "text",
+      "text": "הצצה לעולם המחר",
+      "position": { "x": 290, "y": 280 },
+      "fontSize": 20,
+      "color": "#FFFFFF",
+      "fontWeight": 400,
+      "fontFamily": "Heebo",
+      "shadow": false,
+      "bgColor": "transparent",
+      "rotation": 0
+    },
+    {
+      "id": "sticker-3",
+      "type": "text",
+      "text": "מיוחד",
+      "position": { "x": 450, "y": 650 },
+      "color": "#000000",
+      "bgColor": "#00FF00",
+      "rotation": -5,
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontFamily": "Heebo",
+      "shadow": false,
+      "padding": "0.25rem 1rem"
+    }
+  ]
+}
