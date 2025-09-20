@@ -1,5 +1,6 @@
 
 
+
 *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 html { line-height: 1.5; -webkit-text-size-adjust: 100%; -moz-tab-size: 4; tab-size: 4; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
 body { margin: 0; line-height: inherit; font-family: 'Heebo', sans-serif; }
@@ -145,6 +146,23 @@ button { text-transform: none; background-color: transparent; background-image: 
 .dirty-button {
     outline: 2px solid #dc2626; /* red-600 */
     outline-offset: 2px;
+}
+
+/* Snapping Guides */
+.snap-guide {
+    position: absolute;
+    background-color: #c026d3; /* A bright, contrasting color like fuchsia */
+    z-index: 200;
+}
+.snap-guide.vertical {
+    width: 1px;
+    top: 0;
+    bottom: 0;
+}
+.snap-guide.horizontal {
+    height: 1px;
+    left: 0;
+    right: 0;
 }
 
 .bg-slate-900 { background-color: #0f172a; }

@@ -1,5 +1,6 @@
 
 
+
 class MagazineEditor {
     constructor() {
         this.state = {
@@ -20,6 +21,7 @@ class MagazineEditor {
         this.isLayerMenuOpen = false;
         this.isFontSizeDropdownOpen = false;
         this.sessionImageFiles = new Map(); // Store original files for the session
+        this.snapLines = []; // For snapping guides
 
         this._init();
     }
@@ -246,6 +248,24 @@ class MagazineEditor {
         this.state.elements.forEach((el, index) => {
             const domEl = this._createElementDOM(el, 1, index);
             this.dom.coverBoundary.appendChild(domEl);
+        });
+        this._renderSnapGuides();
+    }
+    
+    _renderSnapGuides() {
+        // Clear existing guides
+        this.dom.coverBoundary.querySelectorAll('.snap-guide').forEach(el => el.remove());
+        
+        // Render new guides
+        this.snapLines.forEach(line => {
+            const guideEl = document.createElement('div');
+            guideEl.className = `snap-guide ${line.type}`;
+            if (line.type === 'vertical') {
+                guideEl.style.left = `${line.position}px`;
+            } else {
+                guideEl.style.top = `${line.position}px`;
+            }
+            this.dom.coverBoundary.appendChild(guideEl);
         });
     }
 
@@ -783,33 +803,77 @@ class MagazineEditor {
 
     _handleInteractionMove(e) {
         if (!this.interactionState.action) return;
+    
+        this.snapLines = []; // Clear previous snap lines
+        
         const actions = {
-            'drag': this._performDrag,
+            'drag': this._performDragWithSnapping,
             'rotate': this._performRotate,
-            'resize': this._performResize
+            'resize': this._performResizeWithSnapping,
         };
         actions[this.interactionState.action].call(this, e);
+        
         this.renderCover();
-
+    
         if (this.interactionState.action === 'resize' && this.interactionState.element.type === 'image') {
             const el = this.interactionState.element;
             const widthInput = this.dom.sidebarContent.querySelector('[data-property="width"]');
             const heightInput = this.dom.sidebarContent.querySelector('[data-property="height"]');
-
-            if (widthInput) {
-                widthInput.value = Math.round(el.width);
-            }
-            if (heightInput) {
-                heightInput.value = Math.round(el.height);
-            }
+            if (widthInput) widthInput.value = Math.round(el.width);
+            if (heightInput) heightInput.value = Math.round(el.height);
         }
     }
     
-    _performDrag(e) {
+    _performDragWithSnapping(e) {
         const { element, startX, startY, initial } = this.interactionState;
-        element.position.x = initial.x + (e.clientX - startX);
-        element.position.y = initial.y + (e.clientY - startY);
+        const SNAP_THRESHOLD = 8;
+        const { coverWidth, coverHeight } = this.state;
+    
+        let newX = initial.x + (e.clientX - startX);
+        let newY = initial.y + (e.clientY - startY);
+    
+        const elWidth = element.width || this.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetWidth;
+        const elHeight = element.height || this.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetHeight;
+    
+        const elPoints = {
+            v: [newX, newX + elWidth / 2, newX + elWidth],
+            h: [newY, newY + elHeight / 2, newY + elHeight]
+        };
+        const guides = {
+            v: [0, coverWidth / 2, coverWidth],
+            h: [0, coverHeight / 2, coverHeight]
+        };
+    
+        let snappedV = false, snappedH = false;
+    
+        for (const guide of guides.v) {
+            for (const [i, point] of elPoints.v.entries()) {
+                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
+                    newX += guide - point;
+                    this.snapLines.push({ type: 'vertical', position: guide });
+                    snappedV = true;
+                    break;
+                }
+            }
+            if (snappedV) break;
+        }
+    
+        for (const guide of guides.h) {
+            for (const [i, point] of elPoints.h.entries()) {
+                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
+                    newY += guide - point;
+                    this.snapLines.push({ type: 'horizontal', position: guide });
+                    snappedH = true;
+                    break;
+                }
+            }
+            if (snappedH) break;
+        }
+    
+        element.position.x = newX;
+        element.position.y = newY;
     }
+    
     
     _performRotate(e) {
         const { element, coverRect, initial } = this.interactionState;
@@ -817,25 +881,60 @@ class MagazineEditor {
         element.rotation = Math.round((angleRad * 180 / Math.PI + 90) / 5) * 5;
     }
     
-    _performResize(e) {
+    _performResizeWithSnapping(e) {
         const { element, startX, startY, initial, direction } = this.interactionState;
-        let { x, y, width, height } = initial;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        if (direction.includes('e')) width = Math.max(20, initial.width + dx);
-        if (direction.includes('w')) { width = Math.max(20, initial.width - dx); x = initial.x + dx; }
-        if (direction.includes('s')) height = Math.max(20, initial.height + dy);
-        if (direction.includes('n')) { height = Math.max(20, initial.height - dy); y = initial.y + dy; }
+        const SNAP_THRESHOLD = 8;
+        const { coverWidth, coverHeight } = this.state;
         
-        element.position = { x, y };
-        element.width = width;
-        element.height = height;
+        let { x, y, width, height } = initial;
+        let dx = e.clientX - startX;
+        let dy = e.clientY - startY;
+
+        let newX = x, newY = y, newWidth = width, newHeight = height;
+
+        if (direction.includes('e')) newWidth = Math.max(20, width + dx);
+        if (direction.includes('w')) { newWidth = Math.max(20, width - dx); newX = x + dx; }
+        if (direction.includes('s')) newHeight = Math.max(20, height + dy);
+        if (direction.includes('n')) { newHeight = Math.max(20, height - dy); newY = y + dy; }
+        
+        const guides = { v: [0, coverWidth / 2, coverWidth], h: [0, coverHeight / 2, coverHeight] };
+        
+        // Vertical snapping
+        const rightEdge = newX + newWidth;
+        for (const guide of guides.v) {
+            if (direction.includes('w') && Math.abs(newX - guide) < SNAP_THRESHOLD) {
+                const diff = guide - newX; newX = guide; newWidth -= diff;
+                this.snapLines.push({ type: 'vertical', position: guide }); break;
+            }
+            if (direction.includes('e') && Math.abs(rightEdge - guide) < SNAP_THRESHOLD) {
+                newWidth = guide - newX;
+                this.snapLines.push({ type: 'vertical', position: guide }); break;
+            }
+        }
+        
+        // Horizontal snapping
+        const bottomEdge = newY + newHeight;
+        for (const guide of guides.h) {
+            if (direction.includes('n') && Math.abs(newY - guide) < SNAP_THRESHOLD) {
+                const diff = guide - newY; newY = guide; newHeight -= diff;
+                this.snapLines.push({ type: 'horizontal', position: guide }); break;
+            }
+            if (direction.includes('s') && Math.abs(bottomEdge - guide) < SNAP_THRESHOLD) {
+                newHeight = guide - newY;
+                this.snapLines.push({ type: 'horizontal', position: guide }); break;
+            }
+        }
+
+        element.position = { x: newX, y: newY };
+        element.width = newWidth;
+        element.height = newHeight;
     }
 
     _handleInteractionEnd() {
         if (this.interactionState.action) this._setDirty(true);
         this.interactionState = {};
+        this.snapLines = []; // Clear snap lines on mouse up
+        this.renderCover(); // Re-render to remove guides
         this.renderSidebar();
     }
 
