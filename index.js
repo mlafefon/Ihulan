@@ -1,3 +1,5 @@
+
+
 class MagazineEditor {
     constructor() {
         this.state = {
@@ -164,8 +166,8 @@ class MagazineEditor {
     
         const scale = 180 / (template.width || 700);
     
-        template.elements.forEach(el => {
-            const domEl = this._createElementDOM(el, scale);
+        template.elements.forEach((el, elIndex) => {
+            const domEl = this._createElementDOM(el, scale, elIndex);
             cover.appendChild(domEl);
         });
     
@@ -241,13 +243,13 @@ class MagazineEditor {
     renderCover() {
         this.dom.coverBoundary.innerHTML = '';
         this.dom.coverBoundary.style.backgroundColor = this.state.backgroundColor;
-        this.state.elements.forEach(el => {
-            const domEl = this._createElementDOM(el);
+        this.state.elements.forEach((el, index) => {
+            const domEl = this._createElementDOM(el, 1, index);
             this.dom.coverBoundary.appendChild(domEl);
         });
     }
 
-    _createElementDOM(el, scale = 1) {
+    _createElementDOM(el, scale = 1, zIndex) {
         const domEl = document.createElement('div');
         domEl.dataset.id = el.id;
         domEl.className = 'draggable editable';
@@ -258,7 +260,7 @@ class MagazineEditor {
             width: el.width ? `${el.width * scale}px` : 'auto',
             height: el.height ? `${el.height * scale}px` : 'auto',
             transform: `rotate(${el.rotation}deg)`,
-            zIndex: this.state.elements.indexOf(el),
+            zIndex: zIndex,
         });
 
         if (el.id === this.state.selectedElementId && scale === 1) {
@@ -389,6 +391,14 @@ class MagazineEditor {
     _createTextEditorControls(el) {
         const container = document.createElement('div');
         const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
+        const isBgTransparent = el.bgColor === 'transparent';
+
+        const bgTransparentCheckbox = `
+            <div class="flex items-center">
+                <input type="checkbox" data-property="bgTransparent" ${isBgTransparent ? 'checked' : ''} id="bg-transparent-checkbox" class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
+                <label for="bg-transparent-checkbox" class="mr-2 text-sm font-medium text-slate-300">ללא מילוי</label>
+            </div>
+        `;
         
         container.innerHTML = `
             <div class="flex gap-2 mb-3 items-end">
@@ -399,12 +409,14 @@ class MagazineEditor {
                     ${this._createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}
                 </div>
             </div>
-            <div class="mb-3 flex gap-2 w-full">
+             <div class="mb-3 flex gap-2 w-full items-end">
                 ${this._createColorPicker('color', 'צבע גופן', el.color)}
-                ${this._createColorPicker('bgColor', 'צבע רקע', el.bgColor)}
-            </div>
-            <div class="mb-3">
-                <button data-action="set-bg-transparent" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">הפוך רקע לשקוף</button>
+                <div class="flex-1">
+                    ${this._createColorPicker('bgColor', 'צבע רקע', el.bgColor)}
+                </div>
+                <div class="flex-shrink-0 mb-2">
+                    ${bgTransparentCheckbox}
+                </div>
             </div>
             ${this._createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}
             ${this._createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}
@@ -431,14 +443,29 @@ class MagazineEditor {
         div.className = "layer-menu-container mt-4";
         div.innerHTML = `
             <button data-action="toggle-layer-menu" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors flex justify-between items-center">
-                <span>סדר</span>
+                <span class="flex items-center gap-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
+                    <span>סדר</span>
+                </span>
                 <svg class="dropdown-arrow h-5 w-5 transition-transform" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
             </button>
             <div id="layer-menu" class="layer-menu hidden">
-                <button data-action="bring-to-front" class="layer-menu-item">הבא לחזית</button>
-                <button data-action="send-to-back" class="layer-menu-item">העבר לרקע</button>
-                <button data-action="layer-up" class="layer-menu-item">הבא קדימה</button>
-                <button data-action="layer-down" class="layer-menu-item">העבר אחורה</button>
+                <button data-action="bring-to-front" class="layer-menu-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/></svg>
+                    <span>הבא לחזית</span>
+                </button>
+                <button data-action="send-to-back" class="layer-menu-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
+                    <span>העבר לרקע</span>
+                </button>
+                <button data-action="layer-up" class="layer-menu-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/></svg>
+                    <span>הבא קדימה</span>
+                </button>
+                <button data-action="layer-down" class="layer-menu-item">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
+                    <span>העבר אחורה</span>
+                </button>
             </div>
         `;
         return div;
@@ -452,11 +479,17 @@ class MagazineEditor {
         return button;
     }
 
-    _createColorPicker = (prop, label, value) => `
-        <div class="flex-1 color-picker-container">
+    _createColorPicker = (prop, label, value, attrs = {}) => {
+        const isTransparent = value === 'transparent';
+        const containerClasses = `flex-1 color-picker-container ${isTransparent ? 'is-transparent' : ''}`;
+        const attrsString = Object.entries(attrs).map(([k, v]) => (v ? `${k}="${v}"` : '')).filter(Boolean).join(' ');
+        
+        return `
+        <div class="${containerClasses}">
             <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
-            <input type="color" data-property="${prop}" value="${value === 'transparent' ? '#ffffff' : value}" class="w-full h-10 p-1 bg-slate-700 border border-slate-600 rounded-md cursor-pointer" aria-label="${label}" />
+            <input type="color" data-property="${prop}" value="${isTransparent ? '#ffffff' : value}" class="w-full h-10 p-1 bg-slate-700 border border-slate-600 rounded-md cursor-pointer" aria-label="${label}" ${attrsString}/>
         </div>`;
+    }
 
     _createSidebarInput = (type, prop, label, value, attrs = {}) => `
         <div>
@@ -550,7 +583,17 @@ class MagazineEditor {
         if (target.dataset.property && selectedEl && e.type !== 'click') {
             const prop = target.dataset.property;
             let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseFloat(target.value) : target.value);
-            this._updateSelectedElement({ [prop]: value });
+
+            if (prop === 'bgTransparent') {
+                const newBgColor = value ? 'transparent' : (this.dom.sidebarContent.querySelector('[data-property="bgColor"]')?.value || '#FFFFFF');
+                this._updateSelectedElement({ bgColor: newBgColor });
+            } else {
+                this._updateSelectedElement({ [prop]: value });
+            }
+    
+            if (prop === 'bgTransparent' || (prop === 'bgColor' && e.type === 'change')) {
+                this.renderSidebar();
+            }
             return;
         }
 
@@ -564,7 +607,6 @@ class MagazineEditor {
             'delete': () => this._deleteSelectedElement(),
             'add-image': () => this.dom.elementImageUploadInput.click(),
             'edit-image': () => this._editImageHandler(selectedEl),
-            'set-bg-transparent': () => this._updateSelectedElement({ bgColor: 'transparent' }),
             'toggle-layer-menu': () => this._toggleLayerMenu(),
             'bring-to-front': () => this._reorderElement('front'),
             'send-to-back': () => this._reorderElement('back'),
@@ -574,7 +616,9 @@ class MagazineEditor {
         
         if (actions[action]) {
             actions[action]();
-            if (action.startsWith('layer-')) this._toggleLayerMenu(false);
+            if (action.startsWith('layer-') || action === 'bring-to-front' || action === 'send-to-back') {
+                this._toggleLayerMenu(false);
+            }
         }
     }
 
@@ -642,6 +686,31 @@ class MagazineEditor {
         textContainer.contentEditable = true;
         textContainer.focus();
         
+        // Position caret at click location
+        const selection = window.getSelection();
+        if (selection) {
+            let range;
+            // Modern browsers
+            if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
+                if (pos) {
+                    range = document.createRange();
+                    range.setStart(pos.offsetNode, pos.offset);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+            } 
+            // Older browsers
+            else if (document.caretRangeFromPoint) {
+                range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
+                if (range) {
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+            }
+        }
+        
         const originalText = elementData.text;
         const onEditEnd = () => {
             textContainer.removeEventListener('blur', onEditEnd);
@@ -662,6 +731,14 @@ class MagazineEditor {
         const elementId = draggableEl.dataset.id;
         const elementData = this.state.elements.find(el => el.id === elementId);
         if (!elementData) return;
+
+        const action = e.target.dataset.action || 'drag';
+
+        // Prevent dragging from the text content itself. Dragging is only allowed
+        // from the frame (or handles). The click handler will manage selection/editing.
+        if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-content"]')) {
+            return;
+        }
         
         if (this.state.selectedElementId !== elementId) {
             this.state.selectedElementId = elementId;
@@ -672,7 +749,6 @@ class MagazineEditor {
         e.preventDefault();
         e.stopPropagation();
 
-        const action = e.target.dataset.action || 'drag';
         const coverRect = this.dom.coverBoundary.getBoundingClientRect();
         this.interactionState = {
             element: elementData,
@@ -714,6 +790,19 @@ class MagazineEditor {
         };
         actions[this.interactionState.action].call(this, e);
         this.renderCover();
+
+        if (this.interactionState.action === 'resize' && this.interactionState.element.type === 'image') {
+            const el = this.interactionState.element;
+            const widthInput = this.dom.sidebarContent.querySelector('[data-property="width"]');
+            const heightInput = this.dom.sidebarContent.querySelector('[data-property="height"]');
+
+            if (widthInput) {
+                widthInput.value = Math.round(el.width);
+            }
+            if (heightInput) {
+                heightInput.value = Math.round(el.height);
+            }
+        }
     }
     
     _performDrag(e) {
@@ -783,7 +872,9 @@ class MagazineEditor {
 
     _openImageEditorModal(fileOrSrc, image, targetElement) {
         const isReplacing = !!this.imageEditorState;
-        if(isReplacing && this.imageEditorState.imageUrl) URL.revokeObjectURL(this.imageEditorState.imageUrl);
+        if(isReplacing && this.imageEditorState.imageUrl && this.imageEditorState.file) {
+             URL.revokeObjectURL(this.imageEditorState.imageUrl);
+        }
 
         const imageUrl = (fileOrSrc instanceof File) ? image.src : fileOrSrc;
         
@@ -829,7 +920,7 @@ class MagazineEditor {
     }
 
     _closeImageEditorModal() {
-        if (this.imageEditorState && this.imageEditorState.imageUrl) {
+        if (this.imageEditorState && this.imageEditorState.imageUrl && this.imageEditorState.file) {
             URL.revokeObjectURL(this.imageEditorState.imageUrl);
         }
         this.imageEditorState = null;
