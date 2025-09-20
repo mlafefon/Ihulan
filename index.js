@@ -1,6 +1,8 @@
 
 
 
+
+
 class MagazineEditor {
     constructor() {
         this.state = {
@@ -205,11 +207,18 @@ class MagazineEditor {
             console.error(`תבנית באינדקס ${index} אינה קיימת.`);
             return;
         }
+
+        const elementsWithDefaults = JSON.parse(JSON.stringify(template.elements)).map(el => {
+            if (el.type === 'text' && !el.shape) {
+                el.shape = 'rectangle';
+            }
+            return el;
+        });
         
         this.state = {
             ...this.state,
             templateIndex: index,
-            elements: JSON.parse(JSON.stringify(template.elements)),
+            elements: elementsWithDefaults,
             backgroundColor: template.backgroundColor,
             selectedElementId: null,
             templateName: template.name,
@@ -302,21 +311,43 @@ class MagazineEditor {
     }
     
     _applyTextStyles(domEl, el, scale) {
+        // The main `domEl` is for positioning, sizing, and handles. It should not have a background or be clipped.
+        const backgroundElement = document.createElement('div');
+        Object.assign(backgroundElement.style, {
+            width: '100%',
+            height: '100%',
+            backgroundColor: el.bgColor,
+            padding: el.padding || '0px',
+        });
+    
+        // Apply shape styles to the new background element
+        switch (el.shape) {
+            case 'rounded-rectangle':
+                backgroundElement.style.borderRadius = '25px';
+                break;
+            case 'ellipse':
+                backgroundElement.style.borderRadius = '50%';
+                break;
+            case 'star':
+                // This clips only the background, not the parent container with handles
+                backgroundElement.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+                break;
+            case 'rectangle':
+            default:
+                backgroundElement.style.borderRadius = '0px';
+                break;
+        }
+    
         const textWrapper = document.createElement('div');
         textWrapper.dataset.role = 'text-content';
         textWrapper.textContent = el.text;
-
+    
         const FONT_CLASS_MAP = {
             'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik',
             'Assistant': 'font-assistant', 'David Libre': 'font-david-libre', 'Frank Ruhl Libre': 'font-frank-ruhl-libre'
         };
         textWrapper.className = FONT_CLASS_MAP[el.fontFamily] || 'font-heebo';
-        
-        Object.assign(domEl.style, {
-            backgroundColor: el.bgColor,
-            padding: el.padding || '0px',
-        });
-        
+    
         Object.assign(textWrapper.style, {
             color: el.color,
             fontSize: `${el.fontSize * scale}px`,
@@ -326,8 +357,9 @@ class MagazineEditor {
             width: '100%', height: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
         });
-        
-        domEl.appendChild(textWrapper);
+    
+        backgroundElement.appendChild(textWrapper);
+        domEl.appendChild(backgroundElement);
     }
 
     _applyImageStyles(domEl, el) {
@@ -412,6 +444,21 @@ class MagazineEditor {
         const container = document.createElement('div');
         const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
         const isBgTransparent = el.bgColor === 'transparent';
+        const shapeOptions = [
+            { value: 'rectangle', text: 'מלבן' },
+            { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
+            { value: 'ellipse', text: 'אליפסה' },
+            { value: 'star', text: 'כוכב' }
+        ];
+
+        const shapeSelectHTML = `
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
+                <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                    ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
+                </select>
+            </div>
+        `;
 
         const bgTransparentCheckbox = `
             <div class="flex items-center">
@@ -438,6 +485,7 @@ class MagazineEditor {
                     ${bgTransparentCheckbox}
                 </div>
             </div>
+            ${shapeSelectHTML}
             ${this._createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}
             ${this._createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}
         `;
@@ -945,7 +993,7 @@ class MagazineEditor {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
-            bgColor: 'transparent', rotation: 0
+            bgColor: 'transparent', rotation: 0, shape: 'rectangle',
         } : {
             id: `el_${Date.now()}`, type: 'image', src: null,
             position: { x: 50, y: 100 }, width: 200, height: 150, rotation: 0
