@@ -1,8 +1,6 @@
 
 
 
-
-
 /**
  * @file index.js
  * Refactored main script for the Magazine Cover Editor.
@@ -325,7 +323,8 @@ class TemplateModal {
                     fontSize: `${el.fontSize * scale}px`,
                     fontFamily: el.fontFamily,
                     fontWeight: el.fontWeight,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    whiteSpace: el.multiLine ? 'pre-wrap' : 'normal',
                 });
             } else if (el.type === 'image' && el.src) {
                 domEl.innerHTML = `<img src="${el.src}" class="w-full h-full object-cover">`;
@@ -403,6 +402,7 @@ class MagazineEditor {
             templateHeightInput: document.getElementById('template-height-input'),
             saveTemplateBtn: document.getElementById('save-template-btn'),
             exportTemplateBtn: document.getElementById('export-template-btn'),
+            exportImageBtn: document.getElementById('export-image-btn'),
             // Image Editor Modal
             imageEditorModal: document.getElementById('image-editor-modal'),
             imagePreviewContainer: document.getElementById('image-preview-container'),
@@ -490,6 +490,7 @@ class MagazineEditor {
 
         this.dom.saveTemplateBtn.addEventListener('click', this._handleSaveTemplate.bind(this));
         this.dom.exportTemplateBtn.addEventListener('click', this._handleExportTemplate.bind(this));
+        this.dom.exportImageBtn.addEventListener('click', this._handleExportImage.bind(this));
 
         this.dom.sidebar.addEventListener('input', this._handleSidebarInteraction.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInteraction.bind(this));
@@ -598,6 +599,9 @@ class MagazineEditor {
                 }
                 if (!el.textAlign) {
                     el.textAlign = 'center';
+                }
+                if (typeof el.multiLine === 'undefined') {
+                    el.multiLine = false;
                 }
             }
             return el;
@@ -734,7 +738,8 @@ class MagazineEditor {
     
         const textWrapper = document.createElement('div');
         textWrapper.dataset.role = 'text-content';
-        textWrapper.textContent = el.text;
+        // Use innerText to respect newline characters from the data model.
+        textWrapper.innerText = el.text;
     
         const FONT_CLASS_MAP = {
             'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik',
@@ -742,23 +747,39 @@ class MagazineEditor {
         };
         textWrapper.className = FONT_CLASS_MAP[el.fontFamily] || 'font-heebo';
     
-        const justifyContentMap = {
-            left: 'flex-start',
-            center: 'center',
-            right: 'flex-end',
-        };
-
-        Object.assign(textWrapper.style, {
+        const baseStyles = {
             color: el.color,
             fontSize: `${el.fontSize * scale}px`,
             fontWeight: el.fontWeight,
             textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none',
             textAlign: el.textAlign || 'center',
-            wordBreak: 'break-word',
-            width: '100%', height: '100%',
-            display: 'flex', alignItems: 'center', 
-            justifyContent: justifyContentMap[el.textAlign] || 'center',
-        });
+            width: '100%',
+            height: '100%',
+        };
+
+        if (el.multiLine) {
+            // For multiline, avoid 'display: flex' which interferes with contenteditable line breaks.
+            // Use 'white-space: pre-wrap' to render stored newline characters.
+            Object.assign(textWrapper.style, baseStyles, {
+                whiteSpace: 'pre-wrap',
+                overflowY: 'auto',
+                wordBreak: 'break-word',
+            });
+        } else {
+            const justifyContentMap = {
+                left: 'flex-start',
+                center: 'center',
+                right: 'flex-end',
+            };
+            // For single line, flex is great for vertical and horizontal centering.
+            Object.assign(textWrapper.style, baseStyles, {
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: justifyContentMap[el.textAlign] || 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+            });
+        }
     
         backgroundElement.appendChild(textWrapper);
         domEl.appendChild(backgroundElement);
@@ -776,7 +797,7 @@ class MagazineEditor {
             domEl.appendChild(img);
         } else {
             domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
         }
     }
 
@@ -917,6 +938,13 @@ class MagazineEditor {
             </div>
         `;
         
+        const checkboxHTML = `
+            <div class="flex gap-4 mb-3">
+                <div class="flex-1">${this._createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}</div>
+                <div class="flex-1">${this._createSidebarCheckbox('multiLine', 'רב שורה', el.multiLine || false)}</div>
+            </div>
+        `;
+
         container.innerHTML = `
             <div class="flex gap-2 mb-3 items-end">
                 <div class="flex-grow">
@@ -936,7 +964,7 @@ class MagazineEditor {
                 </div>
             </div>
             ${shapeAndWeightHTML}
-            ${this._createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}
+            ${checkboxHTML}
             ${textAlignHTML}
         `;
         return container;
@@ -1037,8 +1065,8 @@ class MagazineEditor {
 
     _createSidebarCheckbox = (prop, label, value) => `
         <div class="flex items-center">
-            <input type="checkbox" data-property="${prop}" ${value ? 'checked' : ''} class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
-            <label class="mr-2 text-sm font-medium text-slate-300">${label}</label>
+            <input type="checkbox" data-property="${prop}" ${value ? 'checked' : ''} id="checkbox-${prop}" class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
+            <label for="checkbox-${prop}" class="mr-2 text-sm font-medium text-slate-300">${label}</label>
         </div>`;
         
     // --- Event Handlers ---
@@ -1080,6 +1108,52 @@ class MagazineEditor {
         a.download = `${name.replace(/ /g, '_')}.json`;
         a.click();
         URL.revokeObjectURL(url);
+    }
+
+    async _handleExportImage() {
+        const button = this.dom.exportImageBtn;
+        const originalButtonHTML = button.innerHTML;
+        button.innerHTML = `
+            <svg class="animate-spin h-5 w-5 -ml-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>מעבד...</span>`;
+        button.disabled = true;
+        button.classList.add('flex', 'items-center', 'justify-center');
+
+        const selectedElDOM = this.dom.coverBoundary.querySelector('.selected');
+        if (selectedElDOM) {
+            selectedElDOM.classList.remove('selected');
+        }
+
+        try {
+            const canvas = await html2canvas(this.dom.coverBoundary, {
+                scale: 2, // for higher quality
+                useCORS: true,
+                backgroundColor: this.state.backgroundColor,
+                logging: false,
+            });
+            
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            const fileName = this.state.templateName.trim().replace(/ /g, '_') || 'magazine-cover';
+            a.download = `${fileName}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+        } catch (error) {
+            console.error('Error exporting image:', error);
+            alert('שגיאה בשמירת התמונה.');
+        } finally {
+            if (selectedElDOM) {
+                selectedElDOM.classList.add('selected');
+            }
+            button.innerHTML = originalButtonHTML;
+            button.disabled = false;
+            button.classList.remove('flex', 'items-center', 'justify-center');
+        }
     }
 
     _handleElementImageUpload(e) {
@@ -1154,6 +1228,10 @@ class MagazineEditor {
                 this._updateSelectedElement({ [prop]: value });
             }
     
+            if (prop === 'multiLine') {
+                this.renderCover();
+            }
+
             if (prop === 'bgTransparent' || (prop === 'bgColor' && e.type === 'change')) {
                 this.renderSidebar();
             }
@@ -1254,6 +1332,11 @@ class MagazineEditor {
     }
 
     _startInlineEditing(elementData, draggableEl, clickEvent) {
+        if (!elementData.multiLine && (typeof elementData.width === 'undefined' || typeof elementData.height === 'undefined')) {
+            elementData.width = draggableEl.offsetWidth;
+            elementData.height = draggableEl.offsetHeight;
+            this._setDirty(true);
+        }
         this.state.inlineEditingElementId = elementData.id;
         this.render();
 
@@ -1289,15 +1372,26 @@ class MagazineEditor {
         }
         
         const originalText = elementData.text;
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Enter' && !elementData.multiLine) {
+                e.preventDefault();
+                textContainer.blur();
+            }
+        };
+
         const onEditEnd = () => {
             textContainer.removeEventListener('blur', onEditEnd);
+            textContainer.removeEventListener('keydown', onKeyDown);
             textContainer.contentEditable = false;
-            if (originalText !== textContainer.textContent) {
-                this._updateSelectedElement({ text: textContainer.textContent || '' });
+            const newText = textContainer.innerText || '';
+            if (originalText !== newText) {
+                this._updateSelectedElement({ text: newText });
             }
             this.state.inlineEditingElementId = null;
         };
         textContainer.addEventListener('blur', onEditEnd);
+        textContainer.addEventListener('keydown', onKeyDown);
     }
 
     _handleCoverMouseDown(e) {
@@ -1503,6 +1597,7 @@ class MagazineEditor {
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
             bgColor: 'transparent', rotation: 0, shape: 'rectangle', textAlign: 'center',
+            multiLine: false, width: 300, height: 80
         } : type === 'image' ? {
             id: `el_${Date.now()}`, type: 'image', src: null,
             position: { x: 50, y: 100 }, width: 200, height: 150, rotation: 0
