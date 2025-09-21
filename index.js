@@ -1,3 +1,5 @@
+
+
 /**
  * @file index.js
  * Main script for the Magazine Cover Editor.
@@ -1502,17 +1504,29 @@ class MagazineEditor {
         imagePreviewFrame.style.top = `${frameTop}px`;
         this.imageEditorState.frameOffset = { left: frameLeft, top: frameTop };
         
-        const isSmallImage = image.naturalWidth < finalFrameW || image.naturalHeight < finalFrameH;
-        let minZoom, maxZoom, initialZoom;
+        const sourceW = image.naturalWidth;
+        const sourceH = image.naturalHeight;
+        const targetW = targetElement.width;
+        const targetH = targetElement.height;
         
-        if (isSmallImage) {
-            minZoom = 0.1; 
-            maxZoom = 1;
-            initialZoom = 1;
+        let minZoom, maxZoom, initialZoom;
+        const displayScale = finalFrameW / targetW;
+        const isSourceSmaller = sourceW < targetW && sourceH < targetH;
+
+        // For a better UX, visually disable the slider for small images that shouldn't be zoomed.
+        zoomSlider.disabled = isSourceSmaller;
+
+        if (isSourceSmaller) {
+            // If image is smaller than the target, lock zoom to its proportional original size.
+            initialZoom = displayScale;
+            minZoom = displayScale;
+            maxZoom = displayScale;
         } else {
-            minZoom = 0.1;
-            maxZoom = 3;
-            initialZoom = Math.max(finalFrameW / image.naturalWidth, finalFrameH / image.naturalHeight);
+            // For larger images, the minimum zoom should fill the frame, preventing empty space.
+            minZoom = Math.max(finalFrameW / sourceW, finalFrameH / sourceH);
+            maxZoom = displayScale; // Max zoom is proportional 100% view.
+            initialZoom = minZoom;
+            if (maxZoom < minZoom) maxZoom = minZoom;
         }
         
         this.imageEditorState.minZoom = minZoom;
@@ -1529,7 +1543,21 @@ class MagazineEditor {
             }
         } else {
             this.imageEditorState.zoom = initialZoom;
-            this._centerImageInFrame();
+            if (isSourceSmaller) {
+                // For small images that aren't being zoomed, position them in the center of the frame.
+                // The standard clamp logic doesn't work well for this case.
+                const { zoom, frameOffset } = this.imageEditorState;
+                const frame = this.dom.imagePreviewFrame;
+                const scaledW = image.naturalWidth * zoom;
+                const scaledH = image.naturalHeight * zoom;
+                this.imageEditorState.pan = {
+                    x: frameOffset.left + (frame.offsetWidth - scaledW) / 2,
+                    y: frameOffset.top + (frame.offsetHeight - scaledH) / 2
+                };
+            } else {
+                // For larger images, center and clamp them to the edges.
+                this._centerImageInFrame();
+            }
         }
 
         this._updateColorSwapUI();
