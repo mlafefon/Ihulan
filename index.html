@@ -116,10 +116,13 @@
             <h2 id="image-editor-title" class="text-2xl font-bold text-white mb-4">עריכת תמונה</h2>
             <div class="flex-grow flex gap-6 min-h-0">
                 <!-- Preview Area -->
-                <div id="image-preview-container" class="flex-1 flex items-center justify-center bg-slate-900 rounded-md">
-                    <div id="image-preview-frame" class="relative overflow-hidden bg-slate-700">
-                        <img id="image-preview-img" class="absolute top-0 left-0" style="transform-origin: 0 0;">
+                <div id="image-preview-container" class="flex-1 flex items-center justify-center bg-slate-900 rounded-md relative overflow-hidden">
+                    <!-- This wrapper handles drag events and contains the image -->
+                    <div id="image-preview-wrapper" class="absolute top-0 left-0 w-full h-full cursor-move">
+                        <img id="image-preview-img" class="absolute top-0 left-0 pointer-events-none" style="transform-origin: 0 0;">
                     </div>
+                    <!-- This frame serves as the visual crop guide and mask overlay -->
+                    <div id="image-preview-frame" class="absolute pointer-events-none"></div>
                 </div>
                 <!-- Controls -->
                 <aside class="w-64 flex flex-col">

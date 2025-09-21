@@ -1,360 +1,12 @@
+
+
 /**
  * @file index.js
- * Refactored main script for the Magazine Cover Editor.
- * This file is structured into multiple classes to improve organization and maintainability,
- * even though it's a single file.
+ * Main script for the Magazine Cover Editor.
  *
  * Structure:
- * 1. TemplateService: Handles loading/saving/exporting templates.
- * 2. ImageEditorModal: Manages the image cropping modal.
- * 3. TemplateModal: Manages the template selection modal.
- * 4. Renderer: Handles all DOM rendering for the cover and sidebar.
- * 5. CoverInteractionManager: Handles mouse interactions on the magazine cover.
- * 6. MagazineEditor: The main application class that orchestrates all modules.
+ * 1. MagazineEditor: The main application class that orchestrates all modules.
  */
-
-// --- MODULE: TemplateService ---
-class TemplateService {
-    constructor() {
-        this.templates = [];
-    }
-
-    async loadAllTemplates() {
-        try {
-            const manifestResponse = await fetch('templates/manifest.json');
-            if (!manifestResponse.ok) throw new Error(`שגיאת HTTP! סטטוס: ${manifestResponse.status}`);
-            
-            const manifest = await manifestResponse.json();
-            const templatePromises = manifest.templates.map(url =>
-                fetch(url).then(res => res.ok ? res.json() : Promise.reject(`Failed to load ${url}`))
-            );
-            const defaultTemplates = await Promise.all(templatePromises);
-            
-            let userTemplates = [];
-            try {
-                userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-                userTemplates.forEach(t => t.isUserTemplate = true);
-            } catch (e) {
-                console.error("לא ניתן לטעון תבניות משתמש מ-localStorage", e);
-            }
-            this.templates = [...defaultTemplates, ...userTemplates];
-            return this.templates;
-        } catch (error) {
-            console.error("נכשל בטעינת התבניות:", error);
-            this.templates = [];
-            return [];
-        }
-    }
-
-    saveTemplate(templateData) {
-        const { templateName, coverWidth, coverHeight, backgroundColor, elements } = templateData;
-        if (!templateName.trim()) {
-            alert('יש להזין שם לתבנית.');
-            return false;
-        }
-
-        const newTemplate = {
-            name: templateName,
-            width: coverWidth, height: coverHeight,
-            backgroundColor: backgroundColor,
-            elements: elements,
-        };
-
-        let userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-        const existingIndex = userTemplates.findIndex(t => t.name === templateName);
-        if (existingIndex > -1) {
-            userTemplates[existingIndex] = newTemplate;
-        } else {
-            userTemplates.push(newTemplate);
-        }
-
-        localStorage.setItem('userTemplates', JSON.stringify(userTemplates));
-        alert(`התבנית "${templateName}" נשמרה בהצלחה!`);
-        return true;
-    }
-
-    exportTemplate(templateData) {
-        const { templateName, coverWidth, coverHeight, backgroundColor, elements } = templateData;
-        const name = templateName.trim() || 'Untitled Template';
-        const templateObject = {
-            name,
-            width: coverWidth,
-            height: coverHeight,
-            backgroundColor,
-            elements,
-        };
-
-        const blob = new Blob([JSON.stringify(templateObject, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${name.replace(/ /g, '_')}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-}
-
-
-// --- MODULE: ImageEditorModal ---
-class ImageEditorModal {
-    constructor(dom, onConfirm, onReplace) {
-        this.dom = dom;
-        this.onConfirm = onConfirm;
-        this.onReplace = onReplace;
-
-        this.state = null; // { file, image, imageUrl, targetElement, zoom, minZoom, pan, isDragging, startPan, startMouse }
-
-        this._bindEvents();
-    }
-
-    _bindEvents() {
-        this.dom.confirmCropBtn.addEventListener('click', this._handleConfirm.bind(this));
-        this.dom.cancelCropBtn.addEventListener('click', this.close.bind(this));
-        this.dom.replaceImageBtn.addEventListener('click', () => this.onReplace());
-
-        this._panStartHandler = this._panStart.bind(this);
-        this._panMoveHandler = this._panMove.bind(this);
-        this._panEndHandler = this._panEnd.bind(this);
-        this._zoomHandler = this._zoom.bind(this);
-
-        this.dom.imagePreviewFrame.addEventListener('mousedown', this._panStartHandler);
-        document.addEventListener('mousemove', this._panMoveHandler);
-        document.addEventListener('mouseup', this._panEndHandler);
-        this.dom.zoomSlider.addEventListener('input', this._zoomHandler);
-    }
-
-    open(fileOrSrc, image, targetElement) {
-        const isReplacing = !!this.state;
-        if (isReplacing && this.state.imageUrl && this.state.file) {
-            URL.revokeObjectURL(this.state.imageUrl);
-        }
-
-        const imageUrl = (fileOrSrc instanceof File) ? image.src : fileOrSrc;
-
-        this.state = {
-            file: (fileOrSrc instanceof File) ? fileOrSrc : null,
-            image, imageUrl, targetElement,
-            zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
-            isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 }
-        };
-
-        this.dom.imagePreviewImg.src = imageUrl;
-        this.dom.imageEditorModal.classList.remove('hidden');
-
-        const { sourceRes, targetRes, imagePreviewFrame, imagePreviewImg, imagePreviewContainer, zoomSlider } = this.dom;
-        sourceRes.textContent = `${image.naturalWidth}x${image.naturalHeight}`;
-        targetRes.textContent = `${Math.round(targetElement.width)}x${Math.round(targetElement.height)}`;
-
-        const frameW = imagePreviewContainer.offsetWidth - 20;
-        const frameH = imagePreviewContainer.offsetHeight - 20;
-        const targetAspectRatio = targetElement.width / targetElement.height;
-        let finalFrameW = Math.min(frameW, frameH * targetAspectRatio);
-        let finalFrameH = finalFrameW / targetAspectRatio;
-
-        imagePreviewFrame.style.width = `${finalFrameW}px`;
-        imagePreviewFrame.style.height = `${finalFrameH}px`;
-
-        const minZoom = Math.max(finalFrameW / image.naturalWidth, finalFrameH / image.naturalHeight);
-        this.state.minZoom = minZoom;
-        this.state.zoom = minZoom;
-
-        imagePreviewImg.style.width = `${image.naturalWidth}px`;
-        imagePreviewImg.style.height = `${image.naturalHeight}px`;
-
-        zoomSlider.min = minZoom;
-        zoomSlider.max = Math.max(minZoom, 2);
-        zoomSlider.value = minZoom;
-        zoomSlider.step = (zoomSlider.max - minZoom) / 100;
-
-        this._centerImage();
-        this._updatePreview();
-    }
-    
-    close() {
-        if (this.state && this.state.imageUrl && this.state.file) {
-            URL.revokeObjectURL(this.state.imageUrl);
-        }
-        this.state = null;
-        this.dom.imageEditorModal.classList.add('hidden');
-    }
-
-    _centerImage() {
-        if (!this.state) return;
-        const { image, zoom } = this.state;
-        const frame = this.dom.imagePreviewFrame;
-        const scaledW = image.naturalWidth * zoom;
-        const scaledH = image.naturalHeight * zoom;
-        this.state.pan = { x: (frame.offsetWidth - scaledW) / 2, y: (frame.offsetHeight - scaledH) / 2 };
-        this._clampPan();
-    }
-
-    _updatePreview() {
-        if (!this.state) return;
-        const { zoom, pan } = this.state;
-        this.dom.imagePreviewImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
-    }
-
-    _zoom(e) {
-        if (!this.state) return;
-        const newZoom = parseFloat(e.target.value);
-        this.state.zoom = newZoom;
-        this._clampPan();
-        this._updatePreview();
-    }
-
-    _panStart(e) {
-        e.preventDefault();
-        if (!this.state) return;
-        this.state.isDragging = true;
-        this.state.startMouse = { x: e.clientX, y: e.clientY };
-        this.state.startPan = { ...this.state.pan };
-    }
-    
-    _panMove(e) {
-        if (!this.state?.isDragging) return;
-        e.preventDefault();
-        const { startMouse, startPan } = this.state;
-        this.state.pan.x = startPan.x + (e.clientX - startMouse.x);
-        this.state.pan.y = startPan.y + (e.clientY - startMouse.y);
-        this._clampPan();
-        this._updatePreview();
-    }
-
-    _clampPan() {
-        if (!this.state) return;
-        const { pan, image, zoom } = this.state;
-        const frame = this.dom.imagePreviewFrame;
-        const scaledW = image.naturalWidth * zoom;
-        const scaledH = image.naturalHeight * zoom;
-        pan.x = Math.max(frame.offsetWidth - scaledW, Math.min(0, pan.x));
-        pan.y = Math.max(frame.offsetHeight - scaledH, Math.min(0, pan.y));
-    }
-
-    _panEnd() {
-        if (!this.state) return;
-        this.state.isDragging = false;
-    }
-    
-    _handleConfirm() {
-        if (!this.state) return;
-        const { image, targetElement, zoom, pan, file } = this.state;
-        const frame = this.dom.imagePreviewFrame;
-        const scaleRatio = 1 / zoom;
-
-        const sx = -pan.x * scaleRatio, sy = -pan.y * scaleRatio;
-        const sWidth = frame.offsetWidth * scaleRatio, sHeight = frame.offsetHeight * scaleRatio;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = targetElement.width;
-        canvas.height = targetElement.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, targetElement.width, targetElement.height);
-        
-        const dataUrl = canvas.toDataURL(file?.type || 'image/png');
-        this.onConfirm(dataUrl);
-        this.close();
-    }
-}
-
-
-// --- MODULE: TemplateModal ---
-class TemplateModal {
-    constructor(dom, templates, onSelectTemplate) {
-        this.dom = dom;
-        this.templates = templates;
-        this.onSelectTemplate = onSelectTemplate;
-        this._bindEvents();
-    }
-
-    _bindEvents() {
-        this.dom.modalCloseBtn.addEventListener('click', this.close.bind(this));
-        this.dom.templateModalOverlay.addEventListener('click', this.close.bind(this));
-        this.dom.templateGrid.addEventListener('click', this._handleSelection.bind(this));
-    }
-
-    open() {
-        this.dom.templateGrid.innerHTML = '';
-        this.templates.forEach((template, index) => {
-            const previewEl = this._createTemplatePreview(template, index);
-            this.dom.templateGrid.appendChild(previewEl);
-        });
-        this.dom.templateModal.classList.remove('hidden');
-    }
-
-    close() {
-        this.dom.templateModal.classList.add('hidden');
-    }
-    
-    _createTemplatePreview(template, index) {
-        const container = document.createElement('div');
-        container.className = 'template-preview-container cursor-pointer p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors';
-        container.dataset.templateIndex = index;
-        if (template.isUserTemplate) container.classList.add('user-template');
-
-        const cover = document.createElement('div');
-        cover.className = 'relative w-full overflow-hidden shadow-md';
-        cover.style.aspectRatio = `${template.width || 700} / ${template.height || 906}`;
-        cover.style.backgroundColor = template.backgroundColor;
-    
-        const scale = 180 / (template.width || 700);
-        
-        // Use a simplified element renderer for previews
-        template.elements.forEach(el => {
-            const domEl = document.createElement('div');
-            Object.assign(domEl.style, {
-                position: 'absolute',
-                left: `${el.position.x * scale}px`,
-                top: `${el.position.y * scale}px`,
-                width: el.width ? `${el.width * scale}px` : 'auto',
-                height: el.height ? `${el.height * scale}px` : 'auto',
-                transform: `rotate(${el.rotation}deg)`,
-                backgroundColor: el.bgColor,
-            });
-
-            if (el.type === 'text') {
-                domEl.textContent = el.text;
-                Object.assign(domEl.style, {
-                    color: el.color,
-                    fontSize: `${el.fontSize * scale}px`,
-                    fontFamily: el.fontFamily,
-                    fontWeight: el.fontWeight,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    whiteSpace: el.multiLine ? 'pre-wrap' : 'normal',
-                });
-            } else if (el.type === 'image' && el.src) {
-                domEl.innerHTML = `<img src="${el.src}" class="w-full h-full object-cover">`;
-            }
-            cover.appendChild(domEl);
-        });
-    
-        const name = document.createElement('p');
-        name.className = 'text-center text-sm mt-2 text-slate-300';
-        name.textContent = template.name;
-    
-        container.appendChild(cover);
-        container.appendChild(name);
-        return container;
-    }
-    
-    _handleSelection(e) {
-        const container = e.target.closest('.template-preview-container');
-        if (container && container.dataset.templateIndex) {
-            const index = parseInt(container.dataset.templateIndex, 10);
-            this.onSelectTemplate(index);
-            this.close();
-        }
-    }
-}
-
-
-// --- MODULE: Renderer ---
-// ... (All rendering functions would go here. For brevity, this will be a large class)
-// This will be a big one, so I'll create it now.
-
-// --- MODULE: CoverInteractionManager ---
-// ... (All cover interaction functions)
 
 // --- MAIN CLASS: MagazineEditor ---
 class MagazineEditor {
@@ -375,7 +27,6 @@ class MagazineEditor {
         this.templates = [];
         this.isLayerMenuOpen = false;
         this.isFontSizeDropdownOpen = false;
-        this.sessionImageFiles = new Map(); // Store original files for the session
         this.snapLines = []; // For snapping guides
 
         this._init();
@@ -403,6 +54,7 @@ class MagazineEditor {
             // Image Editor Modal
             imageEditorModal: document.getElementById('image-editor-modal'),
             imagePreviewContainer: document.getElementById('image-preview-container'),
+            imagePreviewWrapper: document.getElementById('image-preview-wrapper'),
             imagePreviewFrame: document.getElementById('image-preview-frame'),
             imagePreviewImg: document.getElementById('image-preview-img'),
             zoomSlider: document.getElementById('zoom-slider'),
@@ -621,13 +273,20 @@ class MagazineEditor {
             return;
         }
 
+        // Deep copy and apply defaults
         const elementsWithDefaults = JSON.parse(JSON.stringify(template.elements)).map(el => {
             if (el.type === 'text') {
-                if (!el.shape) el.shape = 'rectangle';
-                if (!el.textAlign) el.textAlign = 'center';
-                if (typeof el.multiLine === 'undefined') el.multiLine = false;
-                if (typeof el.letterSpacing === 'undefined') el.letterSpacing = 0;
-                if (typeof el.lineHeight === 'undefined') el.lineHeight = 1.2;
+                el.shape = el.shape || 'rectangle';
+                el.textAlign = el.textAlign || 'center';
+                el.multiLine = el.multiLine || false;
+                el.letterSpacing = el.letterSpacing || 0;
+                el.lineHeight = el.lineHeight || 1.2;
+            }
+            if (el.type === 'image') {
+                // Ensure cropData exists with a filters object for backward compatibility
+                if (el.cropData && typeof el.cropData.filters === 'undefined') {
+                    el.cropData.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
+                }
             }
             return el;
         });
@@ -645,8 +304,6 @@ class MagazineEditor {
         this.dom.templateNameInput.value = template.name;
         this.dom.templateWidthInput.value = this.state.coverWidth;
         this.dom.templateHeightInput.value = this.state.coverHeight;
-
-        this.sessionImageFiles.clear();
 
         this._updateCoverDimensions();
         
@@ -1221,21 +878,25 @@ class MagazineEditor {
         if (!file || !selectedEl) {
             e.target.value = null; return;
         }
-
-        this.sessionImageFiles.set(selectedEl.id, file); // Store for later re-editing
-
-        const img = new Image();
-        img.onload = () => {
-            if (img.naturalWidth < selectedEl.width || img.naturalHeight < selectedEl.height) {
-                alert(`התמונה קטנה מדי. יש לבחור תמונה ברזולוציית מקור של לפחות ${Math.round(selectedEl.width)}x${Math.round(selectedEl.height)} פיקסלים.`);
-                URL.revokeObjectURL(img.src);
-                return;
-            }
-            this._openImageEditorModal(file, img, selectedEl);
+        
+        // When a new image is uploaded for an element, reset its crop data.
+        this._updateSelectedElement({ cropData: null });
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const originalSrc = event.target.result;
+            this._updateSelectedElement({ originalSrc });
+            
+            const img = new Image();
+            img.onload = () => {
+                this._openImageEditorModal(originalSrc, img, selectedEl);
+            };
+            img.onerror = () => alert("לא ניתן היה לטעון את קובץ התמונה.");
+            img.src = originalSrc;
         };
-        img.onerror = () => alert("לא ניתן היה לטעון את קובץ התמונה.");
-        img.src = URL.createObjectURL(file);
-        e.target.value = null;
+        reader.readAsDataURL(file);
+        
+        e.target.value = null; // Reset input to allow re-uploading the same file
     }
     
     _deselectAndCleanup() {
@@ -1254,6 +915,7 @@ class MagazineEditor {
     _handleColorSelection(btn) {
         const color = btn.dataset.color;
         const picker = btn.closest('.custom-color-picker');
+        if (!picker) return;
         const prop = picker.dataset.property;
 
         this._updateSelectedElement({ [prop]: color });
@@ -1277,15 +939,20 @@ class MagazineEditor {
 
     _handleNativeColorChange(input) {
         const color = input.value;
-        const picker = input.closest('.custom-color-input-wrapper');
-        const prop = picker.dataset.property;
+        const picker = input.closest('.custom-color-picker');
+        if (!picker) return;
 
+        const prop = picker.dataset.property;
         this._updateSelectedElement({ [prop]: color });
 
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
+        if (!displaySwatch) return;
+
         displaySwatch.classList.remove('is-transparent-swatch');
         displaySwatch.style.backgroundColor = color;
+
+        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
     _handleSidebarInput(e) {
@@ -1389,16 +1056,20 @@ class MagazineEditor {
     }
 
     _editImageHandler(el) {
-        const sessionFile = this.sessionImageFiles.get(el.id);
-        const source = sessionFile ? URL.createObjectURL(sessionFile) : el.src;
+        const source = el.originalSrc || el.src;
         if (!source) return;
 
         const img = new Image();
-        img.onload = () => this._openImageEditorModal(sessionFile || el.src, img, el);
+        img.onload = () => {
+             this._openImageEditorModal(source, img, el);
+        }
         img.onerror = () => {
-            if(sessionFile) URL.revokeObjectURL(source); // Clean up if it was a blob URL
             alert('לא ניתן לטעון את התמונה לעריכה.');
         };
+        // This is crucial for cross-origin images stored in localStorage (dataURLs are fine)
+        if (!source.startsWith('data:')) {
+            img.crossOrigin = "Anonymous";
+        }
         img.src = source;
     }
 
@@ -1719,7 +1390,7 @@ class MagazineEditor {
             multiLine: false, width: 300, height: 80,
             letterSpacing: 0, lineHeight: 1.2
         } : type === 'image' ? {
-            id: `el_${Date.now()}`, type: 'image', src: null,
+            id: `el_${Date.now()}`, type: 'image', src: null, originalSrc: null, cropData: null,
             position: { x: 50, y: 100 }, width: 200, height: 150, rotation: 0
         } : {
             id: `el_${Date.now()}`, type: 'clipping-shape', shape: 'ellipse',
@@ -1761,63 +1432,80 @@ class MagazineEditor {
 
     _openImageEditorModal(fileOrSrc, image, targetElement) {
         const isReplacing = !!this.imageEditorState;
-        if(isReplacing && this.imageEditorState.imageUrl && this.imageEditorState.file) {
-             URL.revokeObjectURL(this.imageEditorState.imageUrl);
-        }
-
-        const imageUrl = (fileOrSrc instanceof File) ? image.src : fileOrSrc;
         
         this.imageEditorState = {
-            file: (fileOrSrc instanceof File) ? fileOrSrc : null,
-            image, imageUrl, targetElement,
+            image, imageUrl: fileOrSrc, targetElement,
             zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
             isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 },
             filters: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
+            frameOffset: { left: 0, top: 0 },
         };
         
-        this.dom.imagePreviewImg.src = imageUrl;
+        this.dom.imagePreviewImg.src = fileOrSrc;
         this.dom.imageEditorModal.classList.remove('hidden');
 
         const { sourceRes, targetRes, imagePreviewFrame, imagePreviewImg, imagePreviewContainer, zoomSlider } = this.dom;
         sourceRes.textContent = `${image.naturalWidth}x${image.naturalHeight}`;
         targetRes.textContent = `${Math.round(targetElement.width)}x${Math.round(targetElement.height)}`;
         
-        const frameW = imagePreviewContainer.offsetWidth - 20;
-        const frameH = imagePreviewContainer.offsetHeight - 20;
+        const containerW = imagePreviewContainer.offsetWidth;
+        const containerH = imagePreviewContainer.offsetHeight;
         const targetAspectRatio = targetElement.width / targetElement.height;
-        let finalFrameW = Math.min(frameW, frameH * targetAspectRatio);
+        let finalFrameW = Math.min(containerW - 20, (containerH - 20) * targetAspectRatio);
         let finalFrameH = finalFrameW / targetAspectRatio;
         
         imagePreviewFrame.style.width = `${finalFrameW}px`;
         imagePreviewFrame.style.height = `${finalFrameH}px`;
+        const frameLeft = (containerW - finalFrameW) / 2;
+        const frameTop = (containerH - finalFrameH) / 2;
+        imagePreviewFrame.style.left = `${frameLeft}px`;
+        imagePreviewFrame.style.top = `${frameTop}px`;
+        this.imageEditorState.frameOffset = { left: frameLeft, top: frameTop };
         
-        const minZoom = Math.max(finalFrameW / image.naturalWidth, finalFrameH / image.naturalHeight);
+        const isSmallImage = image.naturalWidth < finalFrameW || image.naturalHeight < finalFrameH;
+        let minZoom, maxZoom, initialZoom;
+        
+        if (isSmallImage) {
+            minZoom = 0.1; 
+            maxZoom = 1;
+            initialZoom = 1;
+        } else {
+            minZoom = 0.1;
+            maxZoom = 3;
+            initialZoom = Math.max(finalFrameW / image.naturalWidth, finalFrameH / image.naturalHeight);
+        }
+        
         this.imageEditorState.minZoom = minZoom;
-        this.imageEditorState.zoom = minZoom;
         
         imagePreviewImg.style.width = `${image.naturalWidth}px`;
         imagePreviewImg.style.height = `${image.naturalHeight}px`;
 
+        if (targetElement.cropData) {
+            this.imageEditorState.zoom = targetElement.cropData.zoom;
+            this.imageEditorState.pan = targetElement.cropData.pan;
+            this.imageEditorState.filters = targetElement.cropData.filters;
+            this._updateFilterSliders();
+        } else {
+            this.imageEditorState.zoom = initialZoom;
+            this._centerImageInFrame();
+            this._resetFilters();
+        }
+
         zoomSlider.min = minZoom;
-        zoomSlider.max = Math.max(minZoom, 2);
-        zoomSlider.value = minZoom;
-        zoomSlider.step = (zoomSlider.max - minZoom) / 100;
+        zoomSlider.max = maxZoom;
+        zoomSlider.value = this.imageEditorState.zoom;
+        zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
         
-        this._resetFilters();
-        this._centerImageInFrame();
         this._updateImageEditorPreview();
         
         if (!isReplacing) this._setupImageEditorEvents();
     }
 
     _closeImageEditorModal() {
-        if (this.imageEditorState && this.imageEditorState.imageUrl && this.imageEditorState.file) {
-            URL.revokeObjectURL(this.imageEditorState.imageUrl);
-        }
         this.imageEditorState = null;
         this.dom.imageEditorModal.classList.add('hidden');
         this.dom.imagePreviewImg.style.filter = '';
-        this.dom.imagePreviewFrame.removeEventListener('mousedown', this._imagePanStart);
+        this.dom.imagePreviewWrapper.removeEventListener('mousedown', this._imagePanStart);
         document.removeEventListener('mousemove', this._imagePanMove);
         document.removeEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.removeEventListener('input', this._imageZoom);
@@ -1834,7 +1522,7 @@ class MagazineEditor {
         this._handleFilterChange = this._handleFilterChange.bind(this);
         this._resetFilters = this._resetFilters.bind(this);
 
-        this.dom.imagePreviewFrame.addEventListener('mousedown', this._imagePanStart);
+        this.dom.imagePreviewWrapper.addEventListener('mousedown', this._imagePanStart);
         document.addEventListener('mousemove', this._imagePanMove);
         document.addEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.addEventListener('input', this._imageZoom);
@@ -1846,11 +1534,14 @@ class MagazineEditor {
     
     _centerImageInFrame() {
         if (!this.imageEditorState) return;
-        const { image, zoom } = this.imageEditorState;
+        const { image, zoom, frameOffset } = this.imageEditorState;
         const frame = this.dom.imagePreviewFrame;
         const scaledW = image.naturalWidth * zoom;
         const scaledH = image.naturalHeight * zoom;
-        this.imageEditorState.pan = { x: (frame.offsetWidth - scaledW) / 2, y: (frame.offsetHeight - scaledH) / 2 };
+        this.imageEditorState.pan = { 
+            x: frameOffset.left + (frame.offsetWidth - scaledW) / 2, 
+            y: frameOffset.top + (frame.offsetHeight - scaledH) / 2 
+        };
         this._clampImagePan();
     }
 
@@ -1894,8 +1585,25 @@ class MagazineEditor {
     
     _imageZoom(e) {
         if (!this.imageEditorState) return;
+        const oldZoom = this.imageEditorState.zoom;
         const newZoom = parseFloat(e.target.value);
+
+        const { pan } = this.imageEditorState;
+        
+        const containerRect = this.dom.imagePreviewContainer.getBoundingClientRect();
+        // Use center of frame as zoom origin
+        const mouseX = containerRect.left + this.imageEditorState.frameOffset.left + this.dom.imagePreviewFrame.offsetWidth / 2;
+        const mouseY = containerRect.top + this.imageEditorState.frameOffset.top + this.dom.imagePreviewFrame.offsetHeight / 2;
+        
+        const imageX = (mouseX - containerRect.left - pan.x) / oldZoom;
+        const imageY = (mouseY - containerRect.top - pan.y) / oldZoom;
+        
+        const newPanX = (mouseX - containerRect.left) - imageX * newZoom;
+        const newPanY = (mouseY - containerRect.top) - imageY * newZoom;
+        
         this.imageEditorState.zoom = newZoom;
+        this.imageEditorState.pan = { x: newPanX, y: newPanY };
+
         this._clampImagePan();
         this._updateImageEditorPreview();
     }
@@ -1920,12 +1628,19 @@ class MagazineEditor {
     
     _clampImagePan() {
         if (!this.imageEditorState) return;
-        const { pan, image, zoom } = this.imageEditorState;
+        const { pan, image, zoom, frameOffset } = this.imageEditorState;
         const frame = this.dom.imagePreviewFrame;
         const scaledW = image.naturalWidth * zoom;
         const scaledH = image.naturalHeight * zoom;
-        pan.x = Math.max(frame.offsetWidth - scaledW, Math.min(0, pan.x));
-        pan.y = Math.max(frame.offsetHeight - scaledH, Math.min(0, pan.y));
+        const { left: frameLeft, top: frameTop } = frameOffset;
+
+        const minX = frameLeft + frame.offsetWidth - scaledW;
+        const maxX = frameLeft;
+        pan.x = Math.max(minX, Math.min(maxX, pan.x));
+
+        const minY = frameTop + frame.offsetHeight - scaledH;
+        const maxY = frameTop;
+        pan.y = Math.max(minY, Math.min(maxY, pan.y));
     }
 
     _imagePanEnd() {
@@ -1935,24 +1650,56 @@ class MagazineEditor {
 
     _handleImageEditorConfirm() {
         if (!this.imageEditorState) return;
-        const { image, targetElement, zoom, pan, file } = this.imageEditorState;
+        const { image, targetElement, zoom, pan, frameOffset, filters, imageUrl } = this.imageEditorState;
         const frame = this.dom.imagePreviewFrame;
-        const scaleRatio = 1 / zoom;
-
-        const sx = -pan.x * scaleRatio, sy = -pan.y * scaleRatio;
-        const sWidth = frame.offsetWidth * scaleRatio, sHeight = frame.offsetHeight * scaleRatio;
-
+    
         const canvas = document.createElement('canvas');
         canvas.width = targetElement.width;
         canvas.height = targetElement.height;
         const ctx = canvas.getContext('2d');
         ctx.filter = this._getFilterString();
-        ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, targetElement.width, targetElement.height);
         
-        const dataUrl = canvas.toDataURL(file?.type || 'image/png');
-        this._updateSelectedElement({ src: dataUrl });
+        // Define rectangles in preview coordinates
+        const scaledW = image.naturalWidth * zoom;
+        const scaledH = image.naturalHeight * zoom;
+        const frameW = frame.offsetWidth;
+        const frameH = frame.offsetHeight;
+        
+        const imageRect = { left: pan.x, top: pan.y, right: pan.x + scaledW, bottom: pan.y + scaledH };
+        const frameRect = { left: frameOffset.left, top: frameOffset.top, right: frameOffset.left + frameW, bottom: frameOffset.top + frameH };
+        
+        // Find the intersection of the image and the frame
+        const intersect = {
+            left: Math.max(imageRect.left, frameRect.left),
+            top: Math.max(imageRect.top, frameRect.top),
+            right: Math.min(imageRect.right, frameRect.right),
+            bottom: Math.min(imageRect.bottom, frameRect.bottom)
+        };
+        intersect.width = Math.max(0, intersect.right - intersect.left);
+        intersect.height = Math.max(0, intersect.bottom - intersect.top);
+
+        if (intersect.width > 0 && intersect.height > 0) {
+            // Source parameters (from original image)
+            const sX = (intersect.left - pan.x) / zoom;
+            const sY = (intersect.top - pan.y) / zoom;
+            const sW = intersect.width / zoom;
+            const sH = intersect.height / zoom;
+    
+            // Destination parameters (on final canvas)
+            const canvasRatio = targetElement.width / frameW;
+            const dX = (intersect.left - frameRect.left) * canvasRatio;
+            const dY = (intersect.top - frameRect.top) * canvasRatio;
+            const dW = intersect.width * canvasRatio;
+            const dH = intersect.height * canvasRatio;
+    
+            ctx.drawImage(image, sX, sY, sW, sH, dX, dY, dW, dH);
+        }
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const cropData = { zoom, pan, filters };
+        this._updateSelectedElement({ src: dataUrl, cropData });
         this._closeImageEditorModal();
-        this.renderSidebar(); // Re-render sidebar to update buttons
+        this.renderSidebar();
     }
 
     _performClip() {
