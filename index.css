@@ -384,6 +384,12 @@ button { text-transform: none; background-color: transparent; background-image: 
 .hover\:bg-slate-600:hover { background-color: #475569; }
 .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06); }
 
+.template-preview-container .draggable,
+.template-preview-container .draggable.element-type-image,
+.template-preview-container .draggable [data-role="text-content"] {
+  cursor: pointer;
+}
+
 .template-preview-container {
     position: relative;
 }

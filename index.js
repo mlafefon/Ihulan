@@ -1,6 +1,5 @@
 
 
-
 /**
  * @file index.js
  * Refactored main script for the Magazine Cover Editor.
@@ -594,15 +593,11 @@ class MagazineEditor {
 
         const elementsWithDefaults = JSON.parse(JSON.stringify(template.elements)).map(el => {
             if (el.type === 'text') {
-                if (!el.shape) {
-                    el.shape = 'rectangle';
-                }
-                if (!el.textAlign) {
-                    el.textAlign = 'center';
-                }
-                if (typeof el.multiLine === 'undefined') {
-                    el.multiLine = false;
-                }
+                if (!el.shape) el.shape = 'rectangle';
+                if (!el.textAlign) el.textAlign = 'center';
+                if (typeof el.multiLine === 'undefined') el.multiLine = false;
+                if (typeof el.letterSpacing === 'undefined') el.letterSpacing = 0;
+                if (typeof el.lineHeight === 'undefined') el.lineHeight = 1.2;
             }
             return el;
         });
@@ -738,8 +733,8 @@ class MagazineEditor {
     
         const textWrapper = document.createElement('div');
         textWrapper.dataset.role = 'text-content';
-        // Use innerText to respect newline characters from the data model.
-        textWrapper.innerText = el.text;
+        // When multiLine is false, replace newlines with spaces for rendering.
+        textWrapper.innerText = el.multiLine ? el.text : el.text.replace(/(\r\n|\n|\r)/gm, " ");
     
         const FONT_CLASS_MAP = {
             'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik',
@@ -755,6 +750,8 @@ class MagazineEditor {
             textAlign: el.textAlign || 'center',
             width: '100%',
             height: '100%',
+            letterSpacing: `${el.letterSpacing || 0}px`,
+            lineHeight: el.lineHeight || 1.2,
         };
 
         if (el.multiLine) {
@@ -762,14 +759,14 @@ class MagazineEditor {
             // Use 'white-space: pre-wrap' to render stored newline characters.
             Object.assign(textWrapper.style, baseStyles, {
                 whiteSpace: 'pre-wrap',
-                overflowY: 'auto',
+                overflow: 'hidden',
                 wordBreak: 'break-word',
             });
         } else {
             const justifyContentMap = {
-                left: 'flex-start',
+                left: 'flex-end',
                 center: 'center',
-                right: 'flex-end',
+                right: 'flex-start',
             };
             // For single line, flex is great for vertical and horizontal centering.
             Object.assign(textWrapper.style, baseStyles, {
@@ -797,7 +794,7 @@ class MagazineEditor {
             domEl.appendChild(img);
         } else {
             domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
         }
     }
 
@@ -901,6 +898,17 @@ class MagazineEditor {
             { value: 'star', text: 'כוכב' }
         ];
 
+        const spacingHTML = `
+            <div class="flex gap-2 mb-3">
+                <div class="flex-1">
+                    ${this._createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}
+                </div>
+                <div class="flex-1">
+                    ${this._createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}
+                </div>
+            </div>
+        `;
+
         const shapeAndWeightHTML = `
             <div class="flex gap-2 mb-3">
                 <div class="flex-1">
@@ -925,13 +933,13 @@ class MagazineEditor {
         const textAlignHTML = `
             <div class="mb-3">
                 <div class="text-align-group">
-                    <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לימין">
+                    <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
                     </button>
                     <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
                     </button>
-                    <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לשמאל">
+                    <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
                     </button>
                 </div>
@@ -954,6 +962,7 @@ class MagazineEditor {
                     ${this._createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}
                 </div>
             </div>
+            ${spacingHTML}
              <div class="mb-3 flex gap-2 w-full items-end">
                 ${this._createColorPicker('color', 'צבע גופן', el.color)}
                 <div class="flex-1">
@@ -1597,7 +1606,8 @@ class MagazineEditor {
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
             bgColor: 'transparent', rotation: 0, shape: 'rectangle', textAlign: 'center',
-            multiLine: false, width: 300, height: 80
+            multiLine: false, width: 300, height: 80,
+            letterSpacing: 0, lineHeight: 1.2
         } : type === 'image' ? {
             id: `el_${Date.now()}`, type: 'image', src: null,
             position: { x: 50, y: 100 }, width: 200, height: 150, rotation: 0
