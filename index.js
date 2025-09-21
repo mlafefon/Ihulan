@@ -1,5 +1,7 @@
 
 
+
+
 /**
  * @file index.js
  * Refactored main script for the Magazine Cover Editor.
@@ -512,6 +514,15 @@ class MagazineEditor {
                 this._toggleLayerMenu(false);
             }
         }
+        
+        this.dom.sidebarContent.querySelectorAll('.custom-color-picker').forEach(picker => {
+            if (!picker.contains(e.target)) {
+                const btn = picker.querySelector('.color-display-btn');
+                if (btn.getAttribute('aria-expanded') === 'true') {
+                    this._toggleColorPopover(btn, true);
+                }
+            }
+        });
     }
     
     _toggleLayerMenu(forceState) {
@@ -523,6 +534,29 @@ class MagazineEditor {
         this.isLayerMenuOpen = shouldBeOpen;
         menu.classList.toggle('hidden', !shouldBeOpen);
         arrow.classList.toggle('rotate-180', shouldBeOpen);
+    }
+
+    _toggleColorPopover(btn, forceClose = false) {
+        const popover = btn.nextElementSibling;
+        if (!popover) return;
+        const isOpening = popover.classList.contains('hidden');
+
+        // Close all other popovers first
+        this.dom.sidebarContent.querySelectorAll('.color-popover:not(.hidden)').forEach(p => {
+            if (p !== popover) {
+                p.classList.add('hidden');
+                p.previousElementSibling.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        if (forceClose) {
+            popover.classList.add('hidden');
+            btn.setAttribute('aria-expanded', 'false');
+        } else {
+            const shouldBeOpen = isOpening;
+            popover.classList.toggle('hidden', !shouldBeOpen);
+            btn.setAttribute('aria-expanded', shouldBeOpen);
+        }
     }
 
     // --- Template Modal ---
@@ -890,7 +924,6 @@ class MagazineEditor {
     _createTextEditorControls(el) {
         const container = document.createElement('div');
         const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
-        const isBgTransparent = el.bgColor === 'transparent';
         const shapeOptions = [
             { value: 'rectangle', text: 'מלבן' },
             { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
@@ -920,13 +953,6 @@ class MagazineEditor {
                 <div class="flex-1">
                     ${this._createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}
                 </div>
-            </div>
-        `;
-
-        const bgTransparentCheckbox = `
-            <div class="flex items-center">
-                <input type="checkbox" data-property="bgTransparent" ${isBgTransparent ? 'checked' : ''} id="bg-transparent-checkbox" class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
-                <label for="bg-transparent-checkbox" class="mr-2 text-sm font-medium text-slate-300">ללא מילוי</label>
             </div>
         `;
 
@@ -963,14 +989,9 @@ class MagazineEditor {
                 </div>
             </div>
             ${spacingHTML}
-             <div class="mb-3 flex gap-2 w-full items-end">
+            <div class="mb-3 flex gap-2 w-full items-start">
                 ${this._createColorPicker('color', 'צבע גופן', el.color)}
-                <div class="flex-1">
-                    ${this._createColorPicker('bgColor', 'צבע רקע', el.bgColor)}
-                </div>
-                <div class="flex-shrink-0 mb-2">
-                    ${bgTransparentCheckbox}
-                </div>
+                ${this._createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
             </div>
             ${shapeAndWeightHTML}
             ${checkboxHTML}
@@ -1046,16 +1067,45 @@ class MagazineEditor {
         return button;
     }
 
-    _createColorPicker = (prop, label, value, attrs = {}) => {
+    _createColorPicker = (prop, label, value, customClass = '') => {
         const isTransparent = value === 'transparent';
-        const containerClasses = `flex-1 color-picker-container ${isTransparent ? 'is-transparent' : ''}`;
-        const attrsString = Object.entries(attrs).map(([k, v]) => (v ? `${k}="${v}"` : '')).filter(Boolean).join(' ');
-        
+        const displayValue = isTransparent ? 'transparent' : value;
+
+        const PREDEFINED_COLORS = [
+            ['#fde047', '#3b82f6', '#22c55e', '#ef4444', '#ffffff', '#000000'],
+            ['#475569', '#64748b', '#94a3b8', '#cbd5e1', '#60a5fa', '#a855f7']
+        ];
+
+        let gridHTML = PREDEFINED_COLORS.map(row => 
+            `<div class="flex gap-1">` +
+            row.map(color => 
+                `<button type="button" class="color-swatch-btn" data-color="${color}" style="background-color: ${color};" title="${color}"></button>`
+            ).join('') +
+            `</div>`
+        ).join('');
+
         return `
-        <div class="${containerClasses}">
-            <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
-            <input type="color" data-property="${prop}" value="${isTransparent ? '#ffffff' : value}" class="w-full h-10 p-1 bg-slate-700 border border-slate-600 rounded-md cursor-pointer" aria-label="${label}" ${attrsString}/>
-        </div>`;
+            <div class="flex-1">
+                <div class="custom-color-picker ${customClass}" data-property="${prop}" data-value="${displayValue}">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
+                    <button type="button" class="color-display-btn" aria-haspopup="true" aria-expanded="false">
+                        <span class="color-swatch-display ${isTransparent ? 'is-transparent-swatch' : ''}" style="background-color: ${isTransparent ? '#fff' : value};"></span>
+                    </button>
+                    <div class="color-popover hidden">
+                        <div class="space-y-1 mb-2">
+                            ${gridHTML}
+                        </div>
+                        <div class="flex items-center gap-2 pt-2 border-t border-slate-600">
+                            <button type="button" class="color-swatch-btn is-transparent-swatch" data-color="transparent" title="ללא צבע"></button>
+                            <div class="relative flex-1 custom-color-input-wrapper">
+                                <input type="color" value="${isTransparent ? '#ffffff' : value}" class="native-color-picker" aria-label="Custom color">
+                                <span class="inline-block align-middle ml-2 text-sm">מותאם אישית</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     _createSidebarInput = (type, prop, label, value, attrs = {}) => `
@@ -1202,11 +1252,66 @@ class MagazineEditor {
         this.render();
     }
     
+    _handleColorSelection(btn) {
+        const color = btn.dataset.color;
+        const picker = btn.closest('.custom-color-picker');
+        const prop = picker.dataset.property;
+
+        this._updateSelectedElement({ [prop]: color });
+
+        picker.dataset.value = color;
+        const displaySwatch = picker.querySelector('.color-swatch-display');
+        const nativePicker = picker.querySelector('.native-color-picker');
+
+        if (color === 'transparent') {
+            displaySwatch.classList.add('is-transparent-swatch');
+            displaySwatch.style.backgroundColor = '#fff';
+            nativePicker.value = '#ffffff';
+        } else {
+            displaySwatch.classList.remove('is-transparent-swatch');
+            displaySwatch.style.backgroundColor = color;
+            nativePicker.value = color;
+        }
+
+        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+    }
+
+    _handleNativeColorChange(input) {
+        const color = input.value;
+        const picker = input.closest('.custom-color-picker');
+        const prop = picker.dataset.property;
+
+        this._updateSelectedElement({ [prop]: color });
+
+        picker.dataset.value = color;
+        const displaySwatch = picker.querySelector('.color-swatch-display');
+        displaySwatch.classList.remove('is-transparent-swatch');
+        displaySwatch.style.backgroundColor = color;
+    }
+
     _handleSidebarInteraction(e) {
         const { target } = e;
         const oldSelectedId = this.state.selectedElementId;
         const selectedEl = this.state.elements.find(el => el.id === oldSelectedId);
         
+        if (e.type === 'click') {
+            const colorDisplayBtn = target.closest('.color-display-btn');
+            if (colorDisplayBtn) {
+                this._toggleColorPopover(colorDisplayBtn);
+                return;
+            }
+            const swatchBtn = target.closest('.color-swatch-btn');
+            if (swatchBtn) {
+                this._handleColorSelection(swatchBtn);
+                return;
+            }
+        }
+        
+        if (target.matches('.native-color-picker') && (e.type === 'input' || e.type === 'change')) {
+            this._handleNativeColorChange(target);
+            return;
+        }
+
         if (target.dataset.property && selectedEl && e.type !== 'click') {
             const prop = target.dataset.property;
             let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseFloat(target.value) : target.value);
@@ -1229,20 +1334,11 @@ class MagazineEditor {
                 this.renderCover();
                 return;
             }
-
-            if (prop === 'bgTransparent') {
-                const newBgColor = value ? 'transparent' : (this.dom.sidebarContent.querySelector('[data-property="bgColor"]')?.value || '#FFFFFF');
-                this._updateSelectedElement({ bgColor: newBgColor });
-            } else {
-                this._updateSelectedElement({ [prop]: value });
-            }
+            
+            this._updateSelectedElement({ [prop]: value });
     
             if (prop === 'multiLine') {
                 this.renderCover();
-            }
-
-            if (prop === 'bgTransparent' || (prop === 'bgColor' && e.type === 'change')) {
-                this.renderSidebar();
             }
             return;
         }
