@@ -125,7 +125,7 @@
                     <div id="image-preview-frame" class="absolute pointer-events-none"></div>
                 </div>
                 <!-- Controls -->
-                <aside class="w-64 flex flex-col">
+                <aside class="w-64 flex flex-col overflow-y-auto pr-2" id="image-editor-sidebar">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-300">מידע</h3>
                         <p class="text-sm text-slate-400">רזולוציית מקור: <span id="source-res"></span></p>
@@ -135,29 +135,68 @@
                         <label for="zoom-slider" class="block text-sm font-medium text-slate-300 mb-1">זום</label>
                         <input id="zoom-slider" type="range" min="1" max="3" step="0.01" value="1" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                     </div>
-                    <div id="image-filter-controls" class="mt-4 pt-4 border-t border-slate-700 space-y-2">
-                        <h3 class="text-lg font-semibold text-slate-300 mb-2">פילטרים</h3>
-                        <div>
-                            <label for="brightness-slider" class="block text-sm font-medium text-slate-300 mb-1">בהירות</label>
-                            <input id="brightness-slider" data-filter="brightness" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    
+                    <div id="image-editor-accordion-container" class="mt-4 pt-4 border-t border-slate-700 space-y-1">
+                      <div class="accordion-group">
+                        <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="filter-panel">
+                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                          <span>פילטרים</span>
+                        </button>
+                        <div id="filter-panel" class="accordion-panel space-y-2">
+                           <div>
+                               <label for="brightness-slider" class="block text-sm font-medium text-slate-300 mb-1">בהירות</label>
+                               <input id="brightness-slider" data-filter="brightness" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                           <div>
+                               <label for="contrast-slider" class="block text-sm font-medium text-slate-300 mb-1">ניגודיות</label>
+                               <input id="contrast-slider" data-filter="contrast" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                           <div>
+                               <label for="saturation-slider" class="block text-sm font-medium text-slate-300 mb-1">רוויה</label>
+                               <input id="saturation-slider" data-filter="saturation" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                           <div>
+                               <label for="grayscale-slider" class="block text-sm font-medium text-slate-300 mb-1">גווני אפור</label>
+                               <input id="grayscale-slider" data-filter="grayscale" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                           <div>
+                               <label for="sepia-slider" class="block text-sm font-medium text-slate-300 mb-1">ספיה</label>
+                               <input id="sepia-slider" data-filter="sepia" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                           <button id="reset-filters-btn" class="w-full mt-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס פילטרים</button>
                         </div>
-                        <div>
-                            <label for="contrast-slider" class="block text-sm font-medium text-slate-300 mb-1">ניגודיות</label>
-                            <input id="contrast-slider" data-filter="contrast" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                      </div>
+
+                      <div class="accordion-group pt-2 border-t border-slate-700">
+                        <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="colorswap-panel">
+                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                          <span>החלפת צבע</span>
+                        </button>
+                        <div id="colorswap-panel" class="accordion-panel space-y-3">
+                           <p class="text-sm text-slate-400">לחץ על הכפתור, ואז לחץ על צבע בתמונה כדי להחליף אותו.</p>
+                           <div class="flex items-center gap-3">
+                               <div class="color-swap-box">
+                                   <span class="color-swap-label">מקור</span>
+                                   <button id="pick-color-btn" class="color-swatch-btn" title="בחר צבע מהתמונה">
+                                       <div id="source-color-swatch" class="is-transparent-swatch"></div>
+                                   </button>
+                               </div>
+                               <div class="text-slate-500 text-xl font-light">&larr;</div>
+                               <div class="color-swap-box">
+                                   <span class="color-swap-label">יעד</span>
+                                   <label for="target-color-picker" class="color-swatch-btn" title="בחר צבע יעד">
+                                        <div id="target-color-swatch" style="background-color: #ff0000;"></div>
+                                   </label>
+                                   <input type="color" id="target-color-picker" value="#ff0000" class="native-color-picker">
+                               </div>
+                           </div>
+                           <div>
+                               <label for="color-tolerance-slider" class="block text-sm font-medium text-slate-300 mb-1">רגישות: <span id="tolerance-value">20</span></label>
+                               <input id="color-tolerance-slider" type="range" min="0" max="150" value="20" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                           </div>
+                            <button id="reset-color-swap-btn" class="w-full mt-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס החלפת צבע</button>
                         </div>
-                        <div>
-                            <label for="saturation-slider" class="block text-sm font-medium text-slate-300 mb-1">רוויה</label>
-                            <input id="saturation-slider" data-filter="saturation" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-                        </div>
-                        <div>
-                            <label for="grayscale-slider" class="block text-sm font-medium text-slate-300 mb-1">גווני אפור</label>
-                            <input id="grayscale-slider" data-filter="grayscale" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-                        </div>
-                        <div>
-                            <label for="sepia-slider" class="block text-sm font-medium text-slate-300 mb-1">ספיה</label>
-                            <input id="sepia-slider" data-filter="sepia" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-                        </div>
-                        <button id="reset-filters-btn" class="w-full mt-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס פילטרים</button>
+                      </div>
                     </div>
                 </aside>
             </div>

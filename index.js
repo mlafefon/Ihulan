@@ -1,5 +1,3 @@
-
-
 /**
  * @file index.js
  * Main script for the Magazine Cover Editor.
@@ -69,6 +67,15 @@ class MagazineEditor {
             grayscaleSlider: document.getElementById('grayscale-slider'),
             sepiaSlider: document.getElementById('sepia-slider'),
             resetFiltersBtn: document.getElementById('reset-filters-btn'),
+            // Color Swap Controls
+            pickColorBtn: document.getElementById('pick-color-btn'),
+            sourceColorSwatch: document.getElementById('source-color-swatch'),
+            targetColorSwatch: document.getElementById('target-color-swatch'),
+            targetColorPicker: document.getElementById('target-color-picker'),
+            colorToleranceSlider: document.getElementById('color-tolerance-slider'),
+            toleranceValue: document.getElementById('tolerance-value'),
+            resetColorSwapBtn: document.getElementById('reset-color-swap-btn'),
+            imageEditorAccordionContainer: document.getElementById('image-editor-accordion-container'),
         };
     }
 
@@ -152,6 +159,18 @@ class MagazineEditor {
         this.dom.confirmCropBtn.addEventListener('click', this._handleImageEditorConfirm.bind(this));
         this.dom.cancelCropBtn.addEventListener('click', this._closeImageEditorModal.bind(this));
         this.dom.replaceImageBtn.addEventListener('click', this._handleImageEditorReplace.bind(this));
+        this.dom.imageEditorAccordionContainer.addEventListener('click', this._handleImageEditorAccordion.bind(this));
+    }
+
+    _handleImageEditorAccordion(e) {
+        const toggleBtn = e.target.closest('.accordion-toggle');
+        if (!toggleBtn) return;
+
+        const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        const panel = document.getElementById(toggleBtn.getAttribute('aria-controls'));
+
+        toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
+        panel.classList.toggle('open');
     }
 
     _handleGlobalClick(e) {
@@ -1433,13 +1452,34 @@ class MagazineEditor {
     _openImageEditorModal(fileOrSrc, image, targetElement) {
         const isReplacing = !!this.imageEditorState;
         
+        // Reset accordion states
+        this.dom.imageEditorAccordionContainer.querySelectorAll('.accordion-panel.open').forEach(panel => {
+            panel.classList.remove('open');
+        });
+        this.dom.imageEditorAccordionContainer.querySelectorAll('.accordion-toggle[aria-expanded="true"]').forEach(toggle => {
+            toggle.setAttribute('aria-expanded', 'false');
+        });
+
         this.imageEditorState = {
-            image, imageUrl: fileOrSrc, targetElement,
+            image, imageUrl: fileOrSrc, swappedImageUrl: null, targetElement,
             zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
             isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 },
             filters: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
             frameOffset: { left: 0, top: 0 },
+            isPickingColor: false,
+            colorSwap: { source: null, target: '#ff0000', tolerance: 20 },
+            originalImageData: null,
+            offscreenCanvas: null,
+            offscreenCtx: null,
         };
+
+        // Setup an offscreen canvas for image processing to avoid repeated calculations
+        this.imageEditorState.offscreenCanvas = document.createElement('canvas');
+        this.imageEditorState.offscreenCanvas.width = image.naturalWidth;
+        this.imageEditorState.offscreenCanvas.height = image.naturalHeight;
+        this.imageEditorState.offscreenCtx = this.imageEditorState.offscreenCanvas.getContext('2d');
+        this.imageEditorState.offscreenCtx.drawImage(image, 0, 0);
+        this.imageEditorState.originalImageData = this.imageEditorState.offscreenCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight);
         
         this.dom.imagePreviewImg.src = fileOrSrc;
         this.dom.imageEditorModal.classList.remove('hidden');
@@ -1483,35 +1523,48 @@ class MagazineEditor {
         if (targetElement.cropData) {
             this.imageEditorState.zoom = targetElement.cropData.zoom;
             this.imageEditorState.pan = targetElement.cropData.pan;
-            this.imageEditorState.filters = targetElement.cropData.filters;
-            this._updateFilterSliders();
+            this.imageEditorState.filters = { ...targetElement.cropData.filters };
+            if (targetElement.cropData.colorSwap) {
+                 this.imageEditorState.colorSwap = { ...targetElement.cropData.colorSwap };
+            }
         } else {
             this.imageEditorState.zoom = initialZoom;
             this._centerImageInFrame();
-            this._resetFilters();
         }
+
+        this._updateColorSwapUI();
+        this._updateFilterSliders();
+        this._applyColorSwapPreview(); // This will also call _updateImageEditorPreview
 
         zoomSlider.min = minZoom;
         zoomSlider.max = maxZoom;
         zoomSlider.value = this.imageEditorState.zoom;
         zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
         
-        this._updateImageEditorPreview();
-        
         if (!isReplacing) this._setupImageEditorEvents();
     }
 
     _closeImageEditorModal() {
+        if (this.imageEditorState && this.imageEditorState.isPickingColor) {
+            this._toggleColorPickMode(false);
+        }
         this.imageEditorState = null;
         this.dom.imageEditorModal.classList.add('hidden');
         this.dom.imagePreviewImg.style.filter = '';
         this.dom.imagePreviewWrapper.removeEventListener('mousedown', this._imagePanStart);
+        this.dom.imagePreviewContainer.removeEventListener('click', this._handleColorPick);
         document.removeEventListener('mousemove', this._imagePanMove);
         document.removeEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.removeEventListener('input', this._imageZoom);
+        
         const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
         sliders.forEach(slider => slider.removeEventListener('input', this._handleFilterChange));
         this.dom.resetFiltersBtn.removeEventListener('click', this._resetFilters);
+
+        this.dom.pickColorBtn.removeEventListener('click', this._toggleColorPickMode);
+        this.dom.targetColorPicker.removeEventListener('input', this._handleTargetColorChange);
+        this.dom.colorToleranceSlider.removeEventListener('input', this._handleToleranceChange);
+        this.dom.resetColorSwapBtn.removeEventListener('click', this._resetColorSwap);
     }
 
     _setupImageEditorEvents() {
@@ -1521,8 +1574,14 @@ class MagazineEditor {
         this._imageZoom = this._imageZoom.bind(this);
         this._handleFilterChange = this._handleFilterChange.bind(this);
         this._resetFilters = this._resetFilters.bind(this);
-
+        this._toggleColorPickMode = this._toggleColorPickMode.bind(this);
+        this._handleColorPick = this._handleColorPick.bind(this);
+        this._handleTargetColorChange = this._handleTargetColorChange.bind(this);
+        this._handleToleranceChange = this._handleToleranceChange.bind(this);
+        this._resetColorSwap = this._resetColorSwap.bind(this);
+        
         this.dom.imagePreviewWrapper.addEventListener('mousedown', this._imagePanStart);
+        this.dom.imagePreviewContainer.addEventListener('click', this._handleColorPick);
         document.addEventListener('mousemove', this._imagePanMove);
         document.addEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.addEventListener('input', this._imageZoom);
@@ -1530,6 +1589,11 @@ class MagazineEditor {
         const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
         sliders.forEach(slider => slider.addEventListener('input', this._handleFilterChange));
         this.dom.resetFiltersBtn.addEventListener('click', this._resetFilters);
+        
+        this.dom.pickColorBtn.addEventListener('click', this._toggleColorPickMode);
+        this.dom.targetColorPicker.addEventListener('input', this._handleTargetColorChange);
+        this.dom.colorToleranceSlider.addEventListener('input', this._handleToleranceChange);
+        this.dom.resetColorSwapBtn.addEventListener('click', this._resetColorSwap);
     }
     
     _centerImageInFrame() {
@@ -1610,7 +1674,7 @@ class MagazineEditor {
 
     _imagePanStart(e) {
         e.preventDefault();
-        if (!this.imageEditorState) return;
+        if (!this.imageEditorState || this.imageEditorState.isPickingColor) return;
         this.imageEditorState.isDragging = true;
         this.imageEditorState.startMouse = { x: e.clientX, y: e.clientY };
         this.imageEditorState.startPan = { ...this.imageEditorState.pan };
@@ -1650,57 +1714,182 @@ class MagazineEditor {
 
     _handleImageEditorConfirm() {
         if (!this.imageEditorState) return;
-        const { image, targetElement, zoom, pan, frameOffset, filters, imageUrl } = this.imageEditorState;
-        const frame = this.dom.imagePreviewFrame;
-    
-        const canvas = document.createElement('canvas');
-        canvas.width = targetElement.width;
-        canvas.height = targetElement.height;
-        const ctx = canvas.getContext('2d');
-        ctx.filter = this._getFilterString();
+        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap } = this.imageEditorState;
         
-        // Define rectangles in preview coordinates
-        const scaledW = image.naturalWidth * zoom;
-        const scaledH = image.naturalHeight * zoom;
-        const frameW = frame.offsetWidth;
-        const frameH = frame.offsetHeight;
-        
-        const imageRect = { left: pan.x, top: pan.y, right: pan.x + scaledW, bottom: pan.y + scaledH };
-        const frameRect = { left: frameOffset.left, top: frameOffset.top, right: frameOffset.left + frameW, bottom: frameOffset.top + frameH };
-        
-        // Find the intersection of the image and the frame
-        const intersect = {
-            left: Math.max(imageRect.left, frameRect.left),
-            top: Math.max(imageRect.top, frameRect.top),
-            right: Math.min(imageRect.right, frameRect.right),
-            bottom: Math.min(imageRect.bottom, frameRect.bottom)
-        };
-        intersect.width = Math.max(0, intersect.right - intersect.left);
-        intersect.height = Math.max(0, intersect.bottom - intersect.top);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = image.naturalWidth;
+        tempCanvas.height = image.naturalHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(image, 0, 0);
 
-        if (intersect.width > 0 && intersect.height > 0) {
-            // Source parameters (from original image)
-            const sX = (intersect.left - pan.x) / zoom;
-            const sY = (intersect.top - pan.y) / zoom;
-            const sW = intersect.width / zoom;
-            const sH = intersect.height / zoom;
-    
-            // Destination parameters (on final canvas)
-            const canvasRatio = targetElement.width / frameW;
-            const dX = (intersect.left - frameRect.left) * canvasRatio;
-            const dY = (intersect.top - frameRect.top) * canvasRatio;
-            const dW = intersect.width * canvasRatio;
-            const dH = intersect.height * canvasRatio;
-    
-            ctx.drawImage(image, sX, sY, sW, sH, dX, dY, dW, dH);
+        if (colorSwap && colorSwap.source) {
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            this._applyColorSwapToImageData(imageData, colorSwap);
+            tempCtx.putImageData(imageData, 0, 0);
         }
 
-        const dataUrl = canvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters };
+        const imageToDraw = tempCanvas;
+        
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = targetElement.width;
+        finalCanvas.height = targetElement.height;
+        const ctx = finalCanvas.getContext('2d');
+        ctx.filter = this._getFilterString();
+        
+        const sX = (frameOffset.left - pan.x) / zoom;
+        const sY = (frameOffset.top - pan.y) / zoom;
+        const sW = this.dom.imagePreviewFrame.offsetWidth / zoom;
+        const sH = this.dom.imagePreviewFrame.offsetHeight / zoom;
+
+        ctx.drawImage(imageToDraw, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
+        
+        const dataUrl = finalCanvas.toDataURL('image/png');
+        const cropData = { zoom, pan, filters, colorSwap };
         this._updateSelectedElement({ src: dataUrl, cropData });
         this._closeImageEditorModal();
         this.renderSidebar();
     }
+    
+    // --- Color Swap Logic ---
+
+    _toggleColorPickMode(forceState = null) {
+        if (!this.imageEditorState) return;
+        const shouldBePicking = forceState !== null ? forceState : !this.imageEditorState.isPickingColor;
+        this.imageEditorState.isPickingColor = shouldBePicking;
+        this.dom.imageEditorModal.classList.toggle('color-picking-mode', shouldBePicking);
+    }
+    
+    _handleColorPick(e) {
+        if (!this.imageEditorState || !this.imageEditorState.isPickingColor) return;
+
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const { image, zoom, pan, originalImageData } = this.imageEditorState;
+        
+        const imgX = Math.floor((x - pan.x) / zoom);
+        const imgY = Math.floor((y - pan.y) / zoom);
+        
+        if (imgX < 0 || imgX >= image.naturalWidth || imgY < 0 || imgY >= image.naturalHeight) return;
+
+        const i = (imgY * image.naturalWidth + imgX) * 4;
+        const r = originalImageData.data[i];
+        const g = originalImageData.data[i + 1];
+        const b = originalImageData.data[i + 2];
+        
+        this.imageEditorState.colorSwap.source = { r, g, b };
+
+        this._updateColorSwapUI();
+        this._applyColorSwapPreview();
+        this._toggleColorPickMode(false);
+    }
+
+    _handleTargetColorChange(e) {
+        if (!this.imageEditorState) return;
+        this.imageEditorState.colorSwap.target = e.target.value;
+        this._updateColorSwapUI();
+        if (this.imageEditorState.colorSwap.source) {
+            this._applyColorSwapPreview();
+        }
+    }
+    
+    _handleToleranceChange(e) {
+        if (!this.imageEditorState) return;
+        this.imageEditorState.colorSwap.tolerance = parseInt(e.target.value, 10);
+        this._updateColorSwapUI();
+        if (this.imageEditorState.colorSwap.source) {
+            this._applyColorSwapPreview();
+        }
+    }
+
+    _resetColorSwap() {
+        if (!this.imageEditorState) return;
+        this.imageEditorState.colorSwap = { source: null, target: '#ff0000', tolerance: 20 };
+        this._updateColorSwapUI();
+        this._applyColorSwapPreview();
+    }
+    
+    _updateColorSwapUI() {
+        if (!this.imageEditorState) return;
+        const { source, target, tolerance } = this.imageEditorState.colorSwap;
+
+        if (source) {
+            this.dom.sourceColorSwatch.style.backgroundColor = `rgb(${source.r}, ${source.g}, ${source.b})`;
+            this.dom.sourceColorSwatch.classList.remove('is-transparent-swatch');
+        } else {
+            this.dom.sourceColorSwatch.style.backgroundColor = '';
+            this.dom.sourceColorSwatch.classList.add('is-transparent-swatch');
+        }
+        
+        this.dom.targetColorSwatch.style.backgroundColor = target;
+        this.dom.targetColorPicker.value = target;
+        this.dom.colorToleranceSlider.value = tolerance;
+        this.dom.toleranceValue.textContent = tolerance;
+    }
+
+    _applyColorSwapPreview() {
+        if (!this.imageEditorState) return;
+        const { imageUrl, colorSwap, offscreenCanvas, offscreenCtx, originalImageData } = this.imageEditorState;
+        
+        if (!colorSwap.source) {
+            this.imageEditorState.swappedImageUrl = null;
+            this.dom.imagePreviewImg.src = imageUrl;
+            this._updateImageEditorPreview();
+            return;
+        }
+
+        const newImageData = new ImageData(
+            new Uint8ClampedArray(originalImageData.data),
+            originalImageData.width,
+            originalImageData.height
+        );
+        
+        this._applyColorSwapToImageData(newImageData, colorSwap);
+        
+        offscreenCtx.putImageData(newImageData, 0, 0);
+        const swappedUrl = offscreenCanvas.toDataURL();
+        this.imageEditorState.swappedImageUrl = swappedUrl;
+        
+        this.dom.imagePreviewImg.src = swappedUrl;
+        this._updateImageEditorPreview();
+    }
+    
+    _applyColorSwapToImageData(imageData, colorSwap) {
+        const data = imageData.data;
+        const sourceRgb = colorSwap.source;
+        const targetRgb = this._hexToRgb(colorSwap.target);
+        const tolerance = colorSwap.tolerance;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            const distance = Math.sqrt(
+                Math.pow(r - sourceRgb.r, 2) +
+                Math.pow(g - sourceRgb.g, 2) +
+                Math.pow(b - sourceRgb.b, 2)
+            );
+            
+            if (distance < tolerance) {
+                data[i] = targetRgb.r;
+                data[i + 1] = targetRgb.g;
+                data[i + 2] = targetRgb.b;
+            }
+        }
+    }
+    
+    _hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+    
+    // --- End Color Swap ---
 
     _performClip() {
         const clipEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
