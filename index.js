@@ -1,7 +1,3 @@
-
-
-
-
 /**
  * @file index.js
  * Refactored main script for the Magazine Cover Editor.
@@ -493,9 +489,9 @@ class MagazineEditor {
         this.dom.exportTemplateBtn.addEventListener('click', this._handleExportTemplate.bind(this));
         this.dom.exportImageBtn.addEventListener('click', this._handleExportImage.bind(this));
 
-        this.dom.sidebar.addEventListener('input', this._handleSidebarInteraction.bind(this));
-        this.dom.sidebar.addEventListener('change', this._handleSidebarInteraction.bind(this));
-        this.dom.sidebar.addEventListener('click', this._handleSidebarInteraction.bind(this));
+        this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
+        this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
+        this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
         
         this.dom.coverBoundary.addEventListener('click', this._handleCoverClick.bind(this));
         this.dom.coverBoundary.addEventListener('mousedown', this._handleCoverMouseDown.bind(this));
@@ -968,6 +964,9 @@ class MagazineEditor {
                     <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
                     </button>
+                    <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+                    </button>
                 </div>
             </div>
         `;
@@ -1278,7 +1277,7 @@ class MagazineEditor {
 
     _handleNativeColorChange(input) {
         const color = input.value;
-        const picker = input.closest('.custom-color-picker');
+        const picker = input.closest('.custom-color-input-wrapper');
         const prop = picker.dataset.property;
 
         this._updateSelectedElement({ [prop]: color });
@@ -1289,34 +1288,29 @@ class MagazineEditor {
         displaySwatch.style.backgroundColor = color;
     }
 
-    _handleSidebarInteraction(e) {
+    _handleSidebarInput(e) {
         const { target } = e;
-        const oldSelectedId = this.state.selectedElementId;
-        const selectedEl = this.state.elements.find(el => el.id === oldSelectedId);
+        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
-        if (e.type === 'click') {
-            const colorDisplayBtn = target.closest('.color-display-btn');
-            if (colorDisplayBtn) {
-                this._toggleColorPopover(colorDisplayBtn);
-                return;
-            }
-            const swatchBtn = target.closest('.color-swatch-btn');
-            if (swatchBtn) {
-                this._handleColorSelection(swatchBtn);
-                return;
-            }
-        }
-        
-        if (target.matches('.native-color-picker') && (e.type === 'input' || e.type === 'change')) {
+        if (target.matches('.native-color-picker')) {
             this._handleNativeColorChange(target);
             return;
         }
-
-        if (target.dataset.property && selectedEl && e.type !== 'click') {
+        
+        if (target.dataset.property && selectedEl) {
             const prop = target.dataset.property;
-            let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseFloat(target.value) : target.value);
+            let value;
+
+            if (target.type === 'checkbox') {
+                value = target.checked;
+            } else if (target.type === 'number') {
+                value = parseFloat(target.value) || 0;
+            } else {
+                value = target.value;
+            }
 
             if (prop === 'id') {
+                const oldSelectedId = this.state.selectedElementId;
                 const newId = String(value).trim();
                 if (!newId) {
                     alert('ID של האלמנט לא יכול להיות ריק.');
@@ -1340,17 +1334,37 @@ class MagazineEditor {
             if (prop === 'multiLine') {
                 this.renderCover();
             }
+        }
+    }
+
+    _handleSidebarClick(e) {
+        const { target } = e;
+        
+        // Color picker logic
+        const colorDisplayBtn = target.closest('.color-display-btn');
+        if (colorDisplayBtn) {
+            this._toggleColorPopover(colorDisplayBtn);
+            return;
+        }
+        const swatchBtn = target.closest('.color-swatch-btn');
+        if (swatchBtn) {
+            this._handleColorSelection(swatchBtn);
             return;
         }
 
+        // Action logic
         const actionTarget = target.closest('[data-action]');
         if (!actionTarget) return;
+
         const action = actionTarget.dataset.action;
+        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
 
         const actions = {
-            'deselect-element': () => { this._deselectAndCleanup() },
+            'deselect-element': () => this._deselectAndCleanup(),
             'add-element': () => this._addElement(actionTarget.dataset.type),
-            'delete': () => this._deleteSelectedElement(),
+            'delete': () => this._renderDeleteConfirmation(),
+            'confirm-delete': () => this._deleteSelectedElement(),
+            'cancel-delete': () => this.renderSidebar(),
             'add-image': () => this.dom.elementImageUploadInput.click(),
             'edit-image': () => this._editImageHandler(selectedEl),
             'toggle-layer-menu': () => this._toggleLayerMenu(),
@@ -1715,6 +1729,21 @@ class MagazineEditor {
         this.state.selectedElementId = newEl.id;
         this._setDirty(true);
         this.render();
+    }
+
+    _renderDeleteConfirmation() {
+        this.dom.sidebarContent.innerHTML = '';
+        const container = document.createElement('div');
+        container.className = 'p-4 bg-slate-900 rounded-lg text-center border border-red-500/50';
+        container.innerHTML = `
+            <h3 class="text-lg font-bold text-white mb-2">אישור מחיקה</h3>
+            <p class="text-slate-400 mb-6">האם אתה בטוח שברצונך למחוק את האלמנט הזה לצמיתות?</p>
+            <div class="flex gap-3 justify-center">
+                <button data-action="cancel-delete" class="sidebar-btn bg-slate-600 hover:bg-slate-500 flex-1">ביטול</button>
+                <button data-action="confirm-delete" class="sidebar-btn bg-red-600 hover:bg-red-700 flex-1">מחק לצמיתות</button>
+            </div>
+        `;
+        this.dom.sidebarContent.appendChild(container);
     }
 
     _deleteSelectedElement() {
