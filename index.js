@@ -500,7 +500,7 @@ class MagazineEditor {
             domEl.appendChild(img);
         } else {
             domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
         }
     }
 
@@ -1113,20 +1113,12 @@ class MagazineEditor {
     _handleCoverClick(e) {
         if (e.target.closest('[contenteditable="true"]')) return;
         const draggableEl = e.target.closest('.draggable');
-        const oldSelectedId = this.state.selectedElementId;
-        
+
         if (draggableEl) {
             const newElementId = draggableEl.dataset.id;
             const newElementData = this.state.elements.find(el => el.id === newElementId);
 
-            // If selecting a NEW element and the OLD one was a clipping shape, remove it.
-            if (oldSelectedId && oldSelectedId !== newElementId) {
-                const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
-                if (oldElement && oldElement.type === 'clipping-shape') {
-                    this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
-                }
-            }
-
+            // Selection is handled in mousedown. This handler only manages the text-editing click.
             this.state.selectedElementId = newElementId;
 
             if (newElementData?.type === 'text') {
@@ -1214,13 +1206,21 @@ class MagazineEditor {
 
         const action = e.target.dataset.action || 'drag';
 
-        // Prevent dragging from the text content itself. Dragging is only allowed
-        // from the frame (or handles). The click handler will manage selection/editing.
+        // Prevent dragging from the text content itself.
         if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-content"]')) {
             return;
         }
         
-        if (this.state.selectedElementId !== elementId) {
+        const oldSelectedId = this.state.selectedElementId;
+        if (oldSelectedId !== elementId) {
+            // A new element is being selected. Check if the old one was a clipping shape.
+            if (oldSelectedId) {
+                const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
+                if (oldElement && oldElement.type === 'clipping-shape') {
+                    this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
+                }
+            }
+            
             this.state.selectedElementId = elementId;
             this.state.inlineEditingElementId = null;
             this.render();
