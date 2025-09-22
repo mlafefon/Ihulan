@@ -173,15 +173,20 @@
                           <span>החלפת צבע</span>
                         </button>
                         <div id="colorswap-panel" class="accordion-panel space-y-3">
-                           <p class="text-sm text-slate-400">לחץ על הכפתור, ואז לחץ על צבע בתמונה כדי להחליף אותו.</p>
-                           <div class="flex items-center gap-3">
-                               <div class="color-swap-box">
-                                   <span class="color-swap-label">מקור</span>
-                                   <button id="pick-color-btn" class="color-swatch-btn" title="בחר צבע מהתמונה">
-                                       <div id="source-color-swatch" class="is-transparent-swatch"></div>
-                                   </button>
+                           <p class="text-sm text-slate-400">לחץ על כפתור בחירת הצבע, ואז לחץ על צבעים בתמונה כדי להוסיף אותם להחלפה.</p>
+                           <div class="flex items-start gap-3">
+                               <div class="color-swap-box flex-1">
+                                   <span class="color-swap-label">צבעי מקור (לחץ להסרה)</span>
+                                    <div class="flex items-center gap-2 mt-1">
+                                       <button id="pick-color-btn" class="color-swatch-btn flex-shrink-0" title="הוסף צבע מקור">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                       </button>
+                                       <div id="source-colors-container" class="source-colors-container">
+                                           <!-- Injected by JS -->
+                                       </div>
+                                    </div>
                                </div>
-                               <div class="text-slate-500 text-xl font-light">&larr;</div>
+                               <div class="text-slate-500 text-xl font-light self-end pb-2">&larr;</div>
                                <div class="color-swap-box">
                                    <span class="color-swap-label">יעד</span>
                                    <label for="target-color-picker" class="color-swatch-btn" title="בחר צבע יעד">

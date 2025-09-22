@@ -1,5 +1,6 @@
 
 
+
 /**
  * @file index.js
  * Main script for the Magazine Cover Editor.
@@ -71,7 +72,7 @@ class MagazineEditor {
             resetFiltersBtn: document.getElementById('reset-filters-btn'),
             // Color Swap Controls
             pickColorBtn: document.getElementById('pick-color-btn'),
-            sourceColorSwatch: document.getElementById('source-color-swatch'),
+            sourceColorsContainer: document.getElementById('source-colors-container'),
             targetColorSwatch: document.getElementById('target-color-swatch'),
             targetColorPicker: document.getElementById('target-color-picker'),
             colorToleranceSlider: document.getElementById('color-tolerance-slider'),
@@ -502,7 +503,7 @@ class MagazineEditor {
             domEl.appendChild(img);
         } else {
             domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
         }
     }
 
@@ -1469,7 +1470,7 @@ class MagazineEditor {
             filters: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
             frameOffset: { left: 0, top: 0 },
             isPickingColor: false,
-            colorSwap: { source: null, target: '#ff0000', tolerance: 20 },
+            colorSwap: { sources: [], target: '#ff0000', tolerance: 20 },
             originalImageData: null,
             offscreenCanvas: null,
             offscreenCtx: null,
@@ -1492,9 +1493,20 @@ class MagazineEditor {
         
         const containerW = imagePreviewContainer.offsetWidth;
         const containerH = imagePreviewContainer.offsetHeight;
-        const targetAspectRatio = targetElement.width / targetElement.height;
-        let finalFrameW = Math.min(containerW - 20, (containerH - 20) * targetAspectRatio);
-        let finalFrameH = finalFrameW / targetAspectRatio;
+
+        // Use the element's actual dimensions for the frame, scaling down if it exceeds the container.
+        let finalFrameW = targetElement.width;
+        let finalFrameH = targetElement.height;
+        const maxFrameW = containerW - 20;
+        const maxFrameH = containerH - 20;
+
+        if (finalFrameW > maxFrameW || finalFrameH > maxFrameH) {
+            const widthScale = maxFrameW / finalFrameW;
+            const heightScale = maxFrameH / finalFrameH;
+            const scale = Math.min(widthScale, heightScale);
+            finalFrameW *= scale;
+            finalFrameH *= scale;
+        }
         
         imagePreviewFrame.style.width = `${finalFrameW}px`;
         imagePreviewFrame.style.height = `${finalFrameH}px`;
@@ -1506,63 +1518,55 @@ class MagazineEditor {
         
         const sourceW = image.naturalWidth;
         const sourceH = image.naturalHeight;
-        const targetW = targetElement.width;
-        const targetH = targetElement.height;
-        
+
+        const zoomFor100Percent = finalFrameW / targetElement.width;
+        const minZoomToFill = Math.max(finalFrameW / sourceW, finalFrameH / sourceH);
+
         let minZoom, maxZoom, initialZoom;
-        const displayScale = finalFrameW / targetW;
-        const isSourceSmaller = sourceW < targetW && sourceH < targetH;
-
-        // For a better UX, visually disable the slider for small images that shouldn't be zoomed.
-        zoomSlider.disabled = isSourceSmaller;
-
-        if (isSourceSmaller) {
-            // If image is smaller than the target, lock zoom to its proportional original size.
-            initialZoom = displayScale;
-            minZoom = displayScale;
-            maxZoom = displayScale;
-        } else {
-            // For larger images, the minimum zoom should fill the frame, preventing empty space.
-            minZoom = Math.max(finalFrameW / sourceW, finalFrameH / sourceH);
-            maxZoom = displayScale; // Max zoom is proportional 100% view.
-            initialZoom = minZoom;
-            if (maxZoom < minZoom) maxZoom = minZoom;
-        }
         
+        // This condition is true if image is smaller than target element, or has an aspect ratio 
+        // that would require upscaling beyond 1:1 to fill the frame.
+        const needsUpscalingToFill = minZoomToFill > zoomFor100Percent;
+
+        if (needsUpscalingToFill) {
+            // Display at its natural proportional size (100%), centered, and disable zoom.
+            minZoom = zoomFor100Percent;
+            maxZoom = zoomFor100Percent;
+            initialZoom = zoomFor100Percent;
+            zoomSlider.disabled = true;
+        } else {
+            // Image is larger than target. Allow zooming from "fill" up to "100%".
+            minZoom = minZoomToFill;
+            maxZoom = zoomFor100Percent;
+            initialZoom = minZoom; // Start fully zoomed out
+            zoomSlider.disabled = (Math.abs(maxZoom - minZoom) < 0.01);
+        }
+
         this.imageEditorState.minZoom = minZoom;
         
-        imagePreviewImg.style.width = `${image.naturalWidth}px`;
-        imagePreviewImg.style.height = `${image.naturalHeight}px`;
+        imagePreviewImg.style.width = `${sourceW}px`;
+        imagePreviewImg.style.height = `${sourceH}px`;
 
         if (targetElement.cropData) {
-            this.imageEditorState.zoom = targetElement.cropData.zoom;
+            // Clamp the loaded zoom to the new valid range
+            this.imageEditorState.zoom = Math.max(minZoom, Math.min(maxZoom, targetElement.cropData.zoom));
             this.imageEditorState.pan = targetElement.cropData.pan;
             this.imageEditorState.filters = { ...targetElement.cropData.filters };
-            if (targetElement.cropData.colorSwap) {
-                 this.imageEditorState.colorSwap = { ...targetElement.cropData.colorSwap };
+             if (targetElement.cropData.colorSwap) {
+                // Backward compatibility for old single-source format
+                const sources = targetElement.cropData.colorSwap.sources || (targetElement.cropData.colorSwap.source ? [targetElement.cropData.colorSwap.source] : []);
+                this.imageEditorState.colorSwap = { 
+                    ...targetElement.cropData.colorSwap,
+                    sources,
+                };
             }
         } else {
             this.imageEditorState.zoom = initialZoom;
-            if (isSourceSmaller) {
-                // For small images that aren't being zoomed, position them in the center of the frame.
-                // The standard clamp logic doesn't work well for this case.
-                const { zoom, frameOffset } = this.imageEditorState;
-                const frame = this.dom.imagePreviewFrame;
-                const scaledW = image.naturalWidth * zoom;
-                const scaledH = image.naturalHeight * zoom;
-                this.imageEditorState.pan = {
-                    x: frameOffset.left + (frame.offsetWidth - scaledW) / 2,
-                    y: frameOffset.top + (frame.offsetHeight - scaledH) / 2
-                };
-            } else {
-                // For larger images, center and clamp them to the edges.
-                this._centerImageInFrame();
-            }
+            this._centerImageInFrame();
         }
 
         this._updateColorSwapUI();
-        this._updateFilterSliders();
-        this._applyColorSwapPreview(); // This will also call _updateImageEditorPreview
+        this._applyColorSwapPreview(); // This also calls _updateImageEditorPreview
 
         zoomSlider.min = minZoom;
         zoomSlider.max = maxZoom;
@@ -1593,6 +1597,7 @@ class MagazineEditor {
         this.dom.targetColorPicker.removeEventListener('input', this._handleTargetColorChange);
         this.dom.colorToleranceSlider.removeEventListener('input', this._handleToleranceChange);
         this.dom.resetColorSwapBtn.removeEventListener('click', this._resetColorSwap);
+        this.dom.sourceColorsContainer.removeEventListener('click', this._handleRemoveSourceColor);
     }
 
     _setupImageEditorEvents() {
@@ -1607,6 +1612,7 @@ class MagazineEditor {
         this._handleTargetColorChange = this._handleTargetColorChange.bind(this);
         this._handleToleranceChange = this._handleToleranceChange.bind(this);
         this._resetColorSwap = this._resetColorSwap.bind(this);
+        this._handleRemoveSourceColor = this._handleRemoveSourceColor.bind(this);
         
         this.dom.imagePreviewWrapper.addEventListener('mousedown', this._imagePanStart);
         this.dom.imagePreviewContainer.addEventListener('click', this._handleColorPick);
@@ -1622,6 +1628,7 @@ class MagazineEditor {
         this.dom.targetColorPicker.addEventListener('input', this._handleTargetColorChange);
         this.dom.colorToleranceSlider.addEventListener('input', this._handleToleranceChange);
         this.dom.resetColorSwapBtn.addEventListener('click', this._resetColorSwap);
+        this.dom.sourceColorsContainer.addEventListener('click', this._handleRemoveSourceColor);
     }
     
     _centerImageInFrame() {
@@ -1726,12 +1733,27 @@ class MagazineEditor {
         const scaledH = image.naturalHeight * zoom;
         const { left: frameLeft, top: frameTop } = frameOffset;
 
-        const minX = frameLeft + frame.offsetWidth - scaledW;
-        const maxX = frameLeft;
-        pan.x = Math.max(minX, Math.min(maxX, pan.x));
+        let minX, maxX, minY, maxY;
 
-        const minY = frameTop + frame.offsetHeight - scaledH;
-        const maxY = frameTop;
+        if (scaledW > frame.offsetWidth) {
+            // Image is wider than the frame, can be panned left/right
+            minX = frameLeft + frame.offsetWidth - scaledW;
+            maxX = frameLeft;
+        } else {
+            // Image is narrower than the frame, so lock it in the center.
+            minX = maxX = frameLeft + (frame.offsetWidth - scaledW) / 2;
+        }
+    
+        if (scaledH > frame.offsetHeight) {
+            // Image is taller than the frame, can be panned up/down
+            minY = frameTop + frame.offsetHeight - scaledH;
+            maxY = frameTop;
+        } else {
+            // Image is shorter than the frame, so lock it in the center.
+            minY = maxY = frameTop + (frame.offsetHeight - scaledH) / 2;
+        }
+
+        pan.x = Math.max(minX, Math.min(maxX, pan.x));
         pan.y = Math.max(minY, Math.min(maxY, pan.y));
     }
 
@@ -1750,7 +1772,7 @@ class MagazineEditor {
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.drawImage(image, 0, 0);
 
-        if (colorSwap && colorSwap.source) {
+        if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
             const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
             this._applyColorSwapToImageData(imageData, colorSwap);
             tempCtx.putImageData(imageData, 0, 0);
@@ -1806,18 +1828,35 @@ class MagazineEditor {
         const g = originalImageData.data[i + 1];
         const b = originalImageData.data[i + 2];
         
-        this.imageEditorState.colorSwap.source = { r, g, b };
+        const newSource = { r, g, b };
+        const isDuplicate = this.imageEditorState.colorSwap.sources.some(s => s.r === newSource.r && s.g === newSource.g && s.b === newSource.b);
+        
+        if (!isDuplicate) {
+            this.imageEditorState.colorSwap.sources.push(newSource);
+        }
 
         this._updateColorSwapUI();
         this._applyColorSwapPreview();
         this._toggleColorPickMode(false);
     }
 
+    _handleRemoveSourceColor(e) {
+        const removeBtn = e.target.closest('.source-color-swatch');
+        if (removeBtn && this.imageEditorState) {
+            const index = parseInt(removeBtn.dataset.index, 10);
+            if (!isNaN(index)) {
+                this.imageEditorState.colorSwap.sources.splice(index, 1);
+                this._updateColorSwapUI();
+                this._applyColorSwapPreview();
+            }
+        }
+    }
+
     _handleTargetColorChange(e) {
         if (!this.imageEditorState) return;
         this.imageEditorState.colorSwap.target = e.target.value;
         this._updateColorSwapUI();
-        if (this.imageEditorState.colorSwap.source) {
+        if (this.imageEditorState.colorSwap.sources.length > 0) {
             this._applyColorSwapPreview();
         }
     }
@@ -1826,29 +1865,34 @@ class MagazineEditor {
         if (!this.imageEditorState) return;
         this.imageEditorState.colorSwap.tolerance = parseInt(e.target.value, 10);
         this._updateColorSwapUI();
-        if (this.imageEditorState.colorSwap.source) {
+        if (this.imageEditorState.colorSwap.sources.length > 0) {
             this._applyColorSwapPreview();
         }
     }
 
     _resetColorSwap() {
         if (!this.imageEditorState) return;
-        this.imageEditorState.colorSwap = { source: null, target: '#ff0000', tolerance: 20 };
+        this.imageEditorState.colorSwap.sources = [];
+        this.imageEditorState.colorSwap.target = '#ff0000';
+        this.imageEditorState.colorSwap.tolerance = 20;
         this._updateColorSwapUI();
         this._applyColorSwapPreview();
     }
     
     _updateColorSwapUI() {
         if (!this.imageEditorState) return;
-        const { source, target, tolerance } = this.imageEditorState.colorSwap;
-
-        if (source) {
-            this.dom.sourceColorSwatch.style.backgroundColor = `rgb(${source.r}, ${source.g}, ${source.b})`;
-            this.dom.sourceColorSwatch.classList.remove('is-transparent-swatch');
-        } else {
-            this.dom.sourceColorSwatch.style.backgroundColor = '';
-            this.dom.sourceColorSwatch.classList.add('is-transparent-swatch');
-        }
+        const { sources, target, tolerance } = this.imageEditorState.colorSwap;
+        
+        this.dom.sourceColorsContainer.innerHTML = '';
+        sources.forEach((source, index) => {
+            const swatch = document.createElement('button');
+            swatch.className = 'source-color-swatch';
+            swatch.style.backgroundColor = `rgb(${source.r}, ${source.g}, ${source.b})`;
+            swatch.dataset.index = index;
+            swatch.title = 'הסר צבע זה';
+            swatch.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="source-color-trash-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+            this.dom.sourceColorsContainer.appendChild(swatch);
+        });
         
         this.dom.targetColorSwatch.style.backgroundColor = target;
         this.dom.targetColorPicker.value = target;
@@ -1860,7 +1904,7 @@ class MagazineEditor {
         if (!this.imageEditorState) return;
         const { imageUrl, colorSwap, offscreenCanvas, offscreenCtx, originalImageData } = this.imageEditorState;
         
-        if (!colorSwap.source) {
+        if (!colorSwap.sources || colorSwap.sources.length === 0) {
             this.imageEditorState.swappedImageUrl = null;
             this.dom.imagePreviewImg.src = imageUrl;
             this._updateImageEditorPreview();
@@ -1885,7 +1929,9 @@ class MagazineEditor {
     
     _applyColorSwapToImageData(imageData, colorSwap) {
         const data = imageData.data;
-        const sourceRgb = colorSwap.source;
+        const sourcesRgb = colorSwap.sources;
+        if (sourcesRgb.length === 0) return;
+        
         const targetRgb = this._hexToRgb(colorSwap.target);
         const tolerance = colorSwap.tolerance;
         
@@ -1894,16 +1940,19 @@ class MagazineEditor {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            const distance = Math.sqrt(
-                Math.pow(r - sourceRgb.r, 2) +
-                Math.pow(g - sourceRgb.g, 2) +
-                Math.pow(b - sourceRgb.b, 2)
-            );
-            
-            if (distance < tolerance) {
-                data[i] = targetRgb.r;
-                data[i + 1] = targetRgb.g;
-                data[i + 2] = targetRgb.b;
+            for (const sourceRgb of sourcesRgb) {
+                 const distance = Math.sqrt(
+                    Math.pow(r - sourceRgb.r, 2) +
+                    Math.pow(g - sourceRgb.g, 2) +
+                    Math.pow(b - sourceRgb.b, 2)
+                );
+                
+                if (distance < tolerance) {
+                    data[i] = targetRgb.r;
+                    data[i + 1] = targetRgb.g;
+                    data[i + 2] = targetRgb.b;
+                    break; // Move to next pixel after a match
+                }
             }
         }
     }
