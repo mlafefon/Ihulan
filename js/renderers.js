@@ -1,0 +1,276 @@
+// --- Sidebar Control Builders (Private helpers) ---
+
+const _createSidebarInput = (type, prop, label, value, attrs = {}) => `
+    <div>
+        <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
+        <input type="${type}" data-property="${prop}" value="${value}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" ${Object.entries(attrs).map(([k,v]) => `${k}="${v}"`).join(' ')} />
+    </div>`;
+
+const _createSidebarSelect = (prop, label, value, options) => `
+    <div>
+        <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
+        <select data-property="${prop}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+            ${options.map(o => `<option value="${o}" ${o == value ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+    </div>`;
+
+const _createSidebarCheckbox = (prop, label, value) => `
+    <div class="flex items-center">
+        <input type="checkbox" data-property="${prop}" ${value ? 'checked' : ''} id="checkbox-${prop}" class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
+        <label for="checkbox-${prop}" class="mr-2 text-sm font-medium text-slate-300">${label}</label>
+    </div>`;
+    
+const _createColorPicker = (prop, label, value, customClass = '') => {
+    const isTransparent = value === 'transparent';
+    const displayValue = isTransparent ? 'transparent' : value;
+    const PREDEFINED_COLORS = [
+        ['#fde047', '#3b82f6', '#22c55e', '#ef4444', '#ffffff', '#000000'],
+        ['#475569', '#64748b', '#94a3b8', '#cbd5e1', '#60a5fa', '#a855f7']
+    ];
+    let gridHTML = PREDEFINED_COLORS.map(row => 
+        `<div class="flex gap-1">${row.map(color => 
+            `<button type="button" class="color-swatch-btn" data-color="${color}" style="background-color: ${color};" title="${color}"></button>`
+        ).join('')}</div>`
+    ).join('');
+    return `<div class="flex-1">
+        <div class="custom-color-picker ${customClass}" data-property="${prop}" data-value="${displayValue}">
+            <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
+            <button type="button" class="color-display-btn" aria-haspopup="true" aria-expanded="false">
+                <span class="color-swatch-display ${isTransparent ? 'is-transparent-swatch' : ''}" style="background-color: ${isTransparent ? '#fff' : value};"></span>
+            </button>
+            <div class="color-popover hidden">
+                <div class="space-y-1 mb-2">${gridHTML}</div>
+                <div class="flex items-center gap-2 pt-2 border-t border-slate-600">
+                    <button type="button" class="color-swatch-btn is-transparent-swatch" data-color="transparent" title="ללא צבע"></button>
+                    <div class="relative flex-1 custom-color-input-wrapper">
+                        <input type="color" value="${isTransparent ? '#ffffff' : value}" class="native-color-picker" aria-label="Custom color">
+                        <span class="inline-block align-middle mr-2 text-sm">מותאם אישית</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+const _createSidebarHeader = (title) => {
+    const div = document.createElement('div');
+    div.className = "flex justify-between items-center gap-4";
+    div.innerHTML = `
+        <h3 class="text-xl font-bold text-white flex-grow truncate">${title}</h3>
+        <button data-action="deselect-element" title="ביטול בחירה" class="flex-shrink-0 p-1 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+    `;
+    return div;
+}
+
+const _createTextEditorControls = (el) => {
+    const container = document.createElement('div');
+    const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
+    const shapeOptions = [
+        { value: 'rectangle', text: 'מלבן' },
+        { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
+        { value: 'ellipse', text: 'אליפסה' },
+        { value: 'star', text: 'כוכב' }
+    ];
+    container.innerHTML = `
+        <div class="flex gap-2 mb-3 items-end">
+            <div class="flex-grow">${_createSidebarSelect('fontFamily', 'שם גופן', el.fontFamily, FONT_FAMILIES)}</div>
+            <div class="w-24">${_createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}</div>
+        </div>
+        <div class="flex gap-2 mb-3">
+            <div class="flex-1">${_createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}</div>
+            <div class="flex-1">${_createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}</div>
+        </div>
+        <div class="mb-3 flex gap-2 w-full items-start">
+            ${_createColorPicker('color', 'צבע גופן', el.color)}
+            ${_createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
+        </div>
+        <div class="flex gap-2 mb-3">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
+                <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                    ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
+                </select>
+            </div>
+            <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
+        </div>
+        <div class="flex gap-4 mb-3">
+            <div class="flex-1">${_createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}</div>
+            <div class="flex-1">${_createSidebarCheckbox('multiLine', 'רב שורה', el.multiLine || false)}</div>
+        </div>
+        <div class="mb-3">
+            <div class="text-align-group">
+                <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+            </div>
+        </div>`;
+    return container;
+}
+
+const _createImageEditorControls = (el) => {
+    const container = document.createElement('div');
+    const buttonText = el.src ? 'ערוך תמונה' : 'הוסף תמונה';
+    const buttonAction = el.src ? 'edit-image' : 'add-image';
+    container.innerHTML = `
+        <div class="flex gap-4 mb-3">
+            <div class="flex-1">${_createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
+            <div class="flex-1">${_createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
+        </div>
+        <button data-action="${buttonAction}" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">${buttonText}</button>`;
+    return container;
+}
+
+const _createClippingShapeEditorControls = (el) => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+        <div class="flex gap-4 mb-3">
+            <div class="flex-1">${_createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
+            <div class="flex-1">${_createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
+        </div>
+        <button data-action="perform-clip" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">בצע חיתוך</button>`;
+    return container;
+}
+
+const _createLayerControls = () => {
+    const div = document.createElement('div');
+    div.className = "layer-menu-container mt-4";
+    div.innerHTML = `
+        <button data-action="toggle-layer-menu" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors flex justify-between items-center">
+            <span class="flex items-center gap-2"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg><span>סדר</span></span>
+            <svg class="dropdown-arrow h-5 w-5 transition-transform" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+        </button>
+        <div id="layer-menu" class="layer-menu hidden">
+            <button data-action="bring-to-front" class="layer-menu-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/></svg><span>הבא לחזית</span></button>
+            <button data-action="send-to-back" class="layer-menu-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg><span>העבר לרקע</span></button>
+            <button data-action="layer-up" class="layer-menu-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/></svg><span>הבא קדימה</span></button>
+            <button data-action="layer-down" class="layer-menu-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg><span>העבר אחורה</span></button>
+        </div>`;
+    return div;
+}
+
+const _createDeleteButton = () => {
+    const button = document.createElement('button');
+    button.dataset.action = "delete";
+    button.className = "w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg";
+    button.textContent = "מחק אלמנט";
+    return button;
+}
+
+const _createEditorSidebar = (el) => {
+    const fragment = document.createDocumentFragment();
+    const typeNameMap = { 'text': 'טקסט', 'image': 'תמונה', 'clipping-shape': 'צורת חיתוך' };
+    const typeName = typeNameMap[el.type] || 'אלמנט';
+    const headerWrapper = document.createElement('div');
+    headerWrapper.className = "mb-4 pb-4 border-b border-slate-700";
+    headerWrapper.appendChild(_createSidebarHeader(`עריכת ${typeName}`));
+    if (el.type !== 'clipping-shape') {
+        const idEditorDiv = document.createElement('div');
+        idEditorDiv.className = "mt-4";
+        idEditorDiv.innerHTML = `
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">ID של האלמנט</label>
+                <input type="text" data-property="id" value="${el.id}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;" />
+            </div>`;
+        headerWrapper.appendChild(idEditorDiv);
+    }
+    fragment.appendChild(headerWrapper);
+
+    if (el.type === 'text') fragment.appendChild(_createTextEditorControls(el));
+    else if (el.type === 'image') fragment.appendChild(_createImageEditorControls(el));
+    else if (el.type === 'clipping-shape') fragment.appendChild(_createClippingShapeEditorControls(el));
+    
+    if (el.type !== 'clipping-shape') {
+         fragment.appendChild(_createLayerControls());
+         fragment.appendChild(_createDeleteButton());
+    }
+    return fragment;
+}
+
+
+// --- Cover Element Renderers (Exported) ---
+
+const _createTransformHandles = () => {
+    const fragment = document.createDocumentFragment();
+    const handles = [
+        { type: 'rotation', action: 'rotate', classes: 'rotation-handle' },
+        ...['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].map(dir => ({ type: 'resize', action: 'resize', classes: `resize-handle ${dir}`, direction: dir }))
+    ];
+    handles.forEach(({ action, classes, direction }) => {
+        const handle = document.createElement('div');
+        handle.className = classes;
+        handle.dataset.action = action;
+        if (direction) handle.dataset.direction = direction;
+        fragment.appendChild(handle);
+    });
+    return fragment;
+};
+
+const _applyTextStyles = (domEl, el, scale) => {
+    const backgroundElement = document.createElement('div');
+    Object.assign(backgroundElement.style, { width: '100%', height: '100%', backgroundColor: el.bgColor, padding: el.padding || '0px' });
+    switch (el.shape) {
+        case 'rounded-rectangle': backgroundElement.style.borderRadius = '25px'; break;
+        case 'ellipse': backgroundElement.style.borderRadius = '50%'; break;
+        case 'star': backgroundElement.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'; break;
+        default: backgroundElement.style.borderRadius = '0px'; break;
+    }
+    const textWrapper = document.createElement('div');
+    textWrapper.dataset.role = 'text-content';
+    textWrapper.innerText = el.multiLine ? el.text : el.text.replace(/(\r\n|\n|\r)/gm, " ");
+    const FONT_CLASS_MAP = { 'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik', 'Assistant': 'font-assistant', 'David Libre': 'font-david-libre', 'Frank Ruhl Libre': 'font-frank-ruhl-libre' };
+    textWrapper.className = FONT_CLASS_MAP[el.fontFamily] || 'font-heebo';
+    const baseStyles = { color: el.color, fontSize: `${el.fontSize * scale}px`, fontWeight: el.fontWeight, textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', textAlign: el.textAlign || 'center', width: '100%', height: '100%', letterSpacing: `${el.letterSpacing || 0}px`, lineHeight: el.lineHeight || 1.2 };
+    if (el.multiLine) {
+        Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'pre-wrap', overflow: 'hidden', wordBreak: 'break-word' });
+    } else {
+        const justifyContentMap = { left: 'flex-end', center: 'center', right: 'flex-start' };
+        Object.assign(textWrapper.style, baseStyles, { display: 'flex', alignItems: 'center', justifyContent: justifyContentMap[el.textAlign] || 'center', whiteSpace: 'nowrap', overflow: 'hidden' });
+    }
+    backgroundElement.appendChild(textWrapper);
+    domEl.appendChild(backgroundElement);
+};
+
+const _applyImageStyles = (domEl, el) => {
+    Object.assign(domEl.style, { display: 'flex', justifyContent: 'center', alignItems: 'center' });
+    if (el.src) {
+        const img = document.createElement('img');
+        img.src = el.src;
+        img.className = 'w-full h-full object-cover pointer-events-none';
+        domEl.appendChild(img);
+    } else {
+        domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
+        domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+    }
+};
+
+export function renderCoverElement(el, state, scale = 1, zIndex) {
+    const domEl = document.createElement('div');
+    domEl.dataset.id = el.id;
+    domEl.className = 'draggable editable';
+    Object.assign(domEl.style, {
+        left: `${el.position.x * scale}px`, top: `${el.position.y * scale}px`,
+        width: el.width ? `${el.width * scale}px` : 'auto', height: el.height ? `${el.height * scale}px` : 'auto',
+        transform: `rotate(${el.rotation}deg)`, zIndex: el.type === 'clipping-shape' ? 999 : zIndex,
+    });
+    if (el.id === state.selectedElementId && scale === 1) domEl.classList.add('selected');
+    if (el.type === 'text') _applyTextStyles(domEl, el, scale);
+    else if (el.type === 'image') { domEl.classList.add('element-type-image'); _applyImageStyles(domEl, el); }
+    else if (el.type === 'clipping-shape') domEl.classList.add('clipping-shape');
+    if (el.id === state.selectedElementId && scale === 1) domEl.appendChild(_createTransformHandles());
+    return domEl;
+}
+
+export function renderSidebar(selectedEl, sidebarContent, templateActions) {
+    if (selectedEl) {
+        sidebarContent.innerHTML = '';
+        sidebarContent.appendChild(_createEditorSidebar(selectedEl));
+        sidebarContent.classList.remove('hidden');
+        templateActions.classList.add('hidden');
+    } else {
+        sidebarContent.classList.add('hidden');
+        templateActions.classList.remove('hidden');
+    }
+}

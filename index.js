@@ -1,4 +1,7 @@
 
+import { renderCoverElement, renderSidebar } from './js/renderers.js';
+import { ImageEditor } from './js/ImageEditor.js';
+import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
 
 
 /**
@@ -27,7 +30,6 @@ class MagazineEditor {
         this.interactionState = {}; // For drag/resize/rotate
         this.templates = [];
         this.isLayerMenuOpen = false;
-        this.isFontSizeDropdownOpen = false;
         this.snapLines = []; // For snapping guides
 
         this._init();
@@ -52,69 +54,21 @@ class MagazineEditor {
             saveTemplateBtn: document.getElementById('save-template-btn'),
             exportTemplateBtn: document.getElementById('export-template-btn'),
             exportImageBtn: document.getElementById('export-image-btn'),
-            // Image Editor Modal
-            imageEditorModal: document.getElementById('image-editor-modal'),
-            imagePreviewContainer: document.getElementById('image-preview-container'),
-            imagePreviewWrapper: document.getElementById('image-preview-wrapper'),
-            imagePreviewFrame: document.getElementById('image-preview-frame'),
-            imagePreviewImg: document.getElementById('image-preview-img'),
-            zoomSlider: document.getElementById('zoom-slider'),
-            confirmCropBtn: document.getElementById('confirm-crop-btn'),
-            cancelCropBtn: document.getElementById('cancel-crop-btn'),
-            replaceImageBtn: document.getElementById('replace-image-btn'),
-            sourceRes: document.getElementById('source-res'),
-            targetRes: document.getElementById('target-res'),
-            brightnessSlider: document.getElementById('brightness-slider'),
-            contrastSlider: document.getElementById('contrast-slider'),
-            saturationSlider: document.getElementById('saturation-slider'),
-            grayscaleSlider: document.getElementById('grayscale-slider'),
-            sepiaSlider: document.getElementById('sepia-slider'),
-            resetFiltersBtn: document.getElementById('reset-filters-btn'),
-            // Color Swap Controls
-            pickColorBtn: document.getElementById('pick-color-btn'),
-            sourceColorsContainer: document.getElementById('source-colors-container'),
-            targetColorSwatch: document.getElementById('target-color-swatch'),
-            targetColorPicker: document.getElementById('target-color-picker'),
-            colorToleranceSlider: document.getElementById('color-tolerance-slider'),
-            toleranceValue: document.getElementById('tolerance-value'),
-            resetColorSwapBtn: document.getElementById('reset-color-swap-btn'),
-            imageEditorAccordionContainer: document.getElementById('image-editor-accordion-container'),
         };
     }
 
     async _init() {
         this._cacheDom();
+        this.imageEditor = new ImageEditor(this);
+        
         this._bindEvents();
         await this._loadAllTemplates();
+
         if (this.templates.length > 0) {
             this.loadTemplate(0);
         } else {
             console.error("לא נטענו תבניות. יש לוודא שקובץ manifest.json והתבניות קיימים.");
             this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא ניתן היה לטעון תבניות.</p>';
-        }
-    }
-
-    async _loadAllTemplates() {
-        try {
-            const manifestResponse = await fetch('templates/manifest.json');
-            if (!manifestResponse.ok) throw new Error(`שגיאת HTTP! סטטוס: ${manifestResponse.status}`);
-            
-            const manifest = await manifestResponse.json();
-            const templatePromises = manifest.templates.map(url =>
-                fetch(`templates/${url}`).then(res => res.ok ? res.json() : Promise.reject(`Failed to load templates/${url}`))
-            );
-            const defaultTemplates = await Promise.all(templatePromises);
-            
-            let userTemplates = [];
-            try {
-                userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-                userTemplates.forEach(t => t.isUserTemplate = true);
-            } catch (e) {
-                console.error("לא ניתן לטעון תבניות משתמש מ-localStorage", e);
-            }
-            this.templates = [...defaultTemplates, ...userTemplates];
-        } catch (error) {
-            console.error("נכשל בטעינת התבניות:", error);
         }
     }
 
@@ -147,9 +101,12 @@ class MagazineEditor {
             }
         });
 
-        this.dom.saveTemplateBtn.addEventListener('click', this._handleSaveTemplate.bind(this));
-        this.dom.exportTemplateBtn.addEventListener('click', this._handleExportTemplate.bind(this));
-        this.dom.exportImageBtn.addEventListener('click', this._handleExportImage.bind(this));
+        this.dom.saveTemplateBtn.addEventListener('click', () => saveTemplate(this.state, this.templates, async () => {
+            this._setDirty(false);
+            await this._loadAllTemplates(); // To refresh user templates list
+        }));
+        this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
+        this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
 
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
@@ -158,22 +115,6 @@ class MagazineEditor {
         this.dom.coverBoundary.addEventListener('click', this._handleCoverClick.bind(this));
         this.dom.coverBoundary.addEventListener('mousedown', this._handleCoverMouseDown.bind(this));
         document.addEventListener('click', this._handleGlobalClick.bind(this));
-
-        this.dom.confirmCropBtn.addEventListener('click', this._handleImageEditorConfirm.bind(this));
-        this.dom.cancelCropBtn.addEventListener('click', this._closeImageEditorModal.bind(this));
-        this.dom.replaceImageBtn.addEventListener('click', this._handleImageEditorReplace.bind(this));
-        this.dom.imageEditorAccordionContainer.addEventListener('click', this._handleImageEditorAccordion.bind(this));
-    }
-
-    _handleImageEditorAccordion(e) {
-        const toggleBtn = e.target.closest('.accordion-toggle');
-        if (!toggleBtn) return;
-
-        const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
-        const panel = document.getElementById(toggleBtn.getAttribute('aria-controls'));
-
-        toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
-        panel.classList.toggle('open');
     }
 
     _handleGlobalClick(e) {
@@ -258,7 +199,7 @@ class MagazineEditor {
         const scale = 180 / (template.width || 700);
     
         template.elements.forEach((el, elIndex) => {
-            const domEl = this._createElementDOM(el, scale, elIndex);
+            const domEl = renderCoverElement(el, this.state, scale, elIndex);
             cover.appendChild(domEl);
         });
     
@@ -286,6 +227,10 @@ class MagazineEditor {
     _setDirty(isDirty) {
         this.state.isDirty = isDirty;
         this.dom.saveTemplateBtn.classList.toggle('dirty-button', isDirty);
+    }
+    
+    async _loadAllTemplates() {
+        this.templates = await loadAllTemplates();
     }
 
     loadTemplate(index) {
@@ -338,7 +283,7 @@ class MagazineEditor {
         this.dom.magazineCover.style.aspectRatio = `${this.state.coverWidth} / ${this.state.coverHeight}`;
     }
     
-    _updateSelectedElement(props) {
+    updateSelectedElement(props) {
         const el = this.state.elements.find(el => el.id === this.state.selectedElementId);
         if (el) {
             Object.assign(el, props);
@@ -358,7 +303,7 @@ class MagazineEditor {
         this.dom.coverBoundary.innerHTML = '';
         this.dom.coverBoundary.style.backgroundColor = this.state.backgroundColor;
         this.state.elements.forEach((el, index) => {
-            const domEl = this._createElementDOM(el, 1, index);
+            const domEl = renderCoverElement(el, this.state, 1, index);
             this.dom.coverBoundary.appendChild(domEl);
         });
         this._renderSnapGuides();
@@ -381,518 +326,13 @@ class MagazineEditor {
         });
     }
 
-    _createElementDOM(el, scale = 1, zIndex) {
-        const domEl = document.createElement('div');
-        domEl.dataset.id = el.id;
-        domEl.className = 'draggable editable';
-
-        Object.assign(domEl.style, {
-            left: `${el.position.x * scale}px`,
-            top: `${el.position.y * scale}px`,
-            width: el.width ? `${el.width * scale}px` : 'auto',
-            height: el.height ? `${el.height * scale}px` : 'auto',
-            transform: `rotate(${el.rotation}deg)`,
-            zIndex: el.type === 'clipping-shape' ? 999 : zIndex,
-        });
-
-        if (el.id === this.state.selectedElementId && scale === 1) {
-            domEl.classList.add('selected');
-        }
-
-        if (el.type === 'text') {
-            this._applyTextStyles(domEl, el, scale);
-        } else if (el.type === 'image') {
-            domEl.classList.add('element-type-image');
-            this._applyImageStyles(domEl, el);
-        } else if (el.type === 'clipping-shape') {
-            domEl.classList.add('clipping-shape');
-        }
-
-        if (el.id === this.state.selectedElementId && scale === 1) {
-            domEl.appendChild(this._createTransformHandles());
-        }
-
-        return domEl;
-    }
-    
-    _applyTextStyles(domEl, el, scale) {
-        const backgroundElement = document.createElement('div');
-        Object.assign(backgroundElement.style, {
-            width: '100%',
-            height: '100%',
-            backgroundColor: el.bgColor,
-            padding: el.padding || '0px',
-        });
-    
-        switch (el.shape) {
-            case 'rounded-rectangle':
-                backgroundElement.style.borderRadius = '25px';
-                break;
-            case 'ellipse':
-                backgroundElement.style.borderRadius = '50%';
-                break;
-            case 'star':
-                backgroundElement.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
-                break;
-            case 'rectangle':
-            default:
-                backgroundElement.style.borderRadius = '0px';
-                break;
-        }
-    
-        const textWrapper = document.createElement('div');
-        textWrapper.dataset.role = 'text-content';
-        // When multiLine is false, replace newlines with spaces for rendering.
-        textWrapper.innerText = el.multiLine ? el.text : el.text.replace(/(\r\n|\n|\r)/gm, " ");
-    
-        const FONT_CLASS_MAP = {
-            'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik',
-            'Assistant': 'font-assistant', 'David Libre': 'font-david-libre', 'Frank Ruhl Libre': 'font-frank-ruhl-libre'
-        };
-        textWrapper.className = FONT_CLASS_MAP[el.fontFamily] || 'font-heebo';
-    
-        const baseStyles = {
-            color: el.color,
-            fontSize: `${el.fontSize * scale}px`,
-            fontWeight: el.fontWeight,
-            textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none',
-            textAlign: el.textAlign || 'center',
-            width: '100%',
-            height: '100%',
-            letterSpacing: `${el.letterSpacing || 0}px`,
-            lineHeight: el.lineHeight || 1.2,
-        };
-
-        if (el.multiLine) {
-            // For multiline, avoid 'display: flex' which interferes with contenteditable line breaks.
-            // Use 'white-space: pre-wrap' to render stored newline characters.
-            Object.assign(textWrapper.style, baseStyles, {
-                whiteSpace: 'pre-wrap',
-                overflow: 'hidden',
-                wordBreak: 'break-word',
-            });
-        } else {
-            const justifyContentMap = {
-                left: 'flex-end',
-                center: 'center',
-                right: 'flex-start',
-            };
-            // For single line, flex is great for vertical and horizontal centering.
-            Object.assign(textWrapper.style, baseStyles, {
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: justifyContentMap[el.textAlign] || 'center',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-            });
-        }
-    
-        backgroundElement.appendChild(textWrapper);
-        domEl.appendChild(backgroundElement);
-    }
-
-    _applyImageStyles(domEl, el) {
-        Object.assign(domEl.style, {
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-        });
-
-        if (el.src) {
-            const img = document.createElement('img');
-            img.src = el.src;
-            img.className = 'w-full h-full object-cover pointer-events-none';
-            domEl.appendChild(img);
-        } else {
-            domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-            domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
-        }
-    }
-
-    _createTransformHandles() {
-        const fragment = document.createDocumentFragment();
-        const handles = [
-            { type: 'rotation', action: 'rotate', classes: 'rotation-handle' },
-            ...['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].map(dir => ({
-                type: 'resize', action: 'resize', classes: `resize-handle ${dir}`, direction: dir
-            }))
-        ];
-        handles.forEach(({ action, classes, direction }) => {
-            const handle = document.createElement('div');
-            handle.className = classes;
-            handle.dataset.action = action;
-            if (direction) handle.dataset.direction = direction;
-            fragment.appendChild(handle);
-        });
-        return fragment;
-    }
-
     renderSidebar() {
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
-        if (selectedEl) {
-            this.dom.sidebarContent.innerHTML = ''; // Clear old content
-            this.dom.sidebarContent.appendChild(this._createEditorSidebar(selectedEl));
-            this.dom.sidebarContent.classList.remove('hidden');
-            this.dom.templateActions.classList.add('hidden');
-        } else {
-            this.dom.sidebarContent.classList.add('hidden');
-            this.dom.templateActions.classList.remove('hidden');
-        }
+        renderSidebar(selectedEl, this.dom.sidebarContent, this.dom.templateActions);
     }
-    
-    _createEditorSidebar(el) {
-        const fragment = document.createDocumentFragment();
-        const typeNameMap = {
-            'text': 'טקסט',
-            'image': 'תמונה',
-            'clipping-shape': 'צורת חיתוך'
-        };
-        const typeName = typeNameMap[el.type] || 'אלמנט';
-
-        const headerWrapper = document.createElement('div');
-        headerWrapper.className = "mb-4 pb-4 border-b border-slate-700";
-
-        const header = this._createSidebarHeader(`עריכת ${typeName}`);
-        headerWrapper.appendChild(header);
-
-        if (el.type !== 'clipping-shape') {
-            const idEditorDiv = document.createElement('div');
-            idEditorDiv.className = "mt-4";
-            idEditorDiv.innerHTML = `
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">ID של האלמנט</label>
-                    <input type="text" data-property="id" value="${el.id}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;" />
-                </div>
-            `;
-            headerWrapper.appendChild(idEditorDiv);
-        }
-        
-        fragment.appendChild(headerWrapper);
-
-        if (el.type === 'text') {
-            fragment.appendChild(this._createTextEditorControls(el));
-        } else if (el.type === 'image') {
-            fragment.appendChild(this._createImageEditorControls(el));
-        } else if (el.type === 'clipping-shape') {
-            fragment.appendChild(this._createClippingShapeEditorControls(el));
-        }
-        
-        if (el.type !== 'clipping-shape') {
-             fragment.appendChild(this._createLayerControls());
-             fragment.appendChild(this._createDeleteButton());
-        }
-
-        return fragment;
-    }
-
-    // --- Sidebar Control Builders ---
-    _createSidebarHeader(title) {
-        const div = document.createElement('div');
-        div.className = "flex justify-between items-center gap-4";
-        div.innerHTML = `
-            <h3 class="text-xl font-bold text-white flex-grow truncate">${title}</h3>
-            <button data-action="deselect-element" title="ביטול בחירה" class="flex-shrink-0 p-1 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-        `;
-        return div;
-    }
-
-    _createTextEditorControls(el) {
-        const container = document.createElement('div');
-        const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
-        const shapeOptions = [
-            { value: 'rectangle', text: 'מלבן' },
-            { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
-            { value: 'ellipse', text: 'אליפסה' },
-            { value: 'star', text: 'כוכב' }
-        ];
-
-        const spacingHTML = `
-            <div class="flex gap-2 mb-3">
-                <div class="flex-1">
-                    ${this._createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}
-                </div>
-                <div class="flex-1">
-                    ${this._createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}
-                </div>
-            </div>
-        `;
-
-        const shapeAndWeightHTML = `
-            <div class="flex gap-2 mb-3">
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
-                    <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
-                        ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="flex-1">
-                    ${this._createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}
-                </div>
-            </div>
-        `;
-
-        const textAlignHTML = `
-            <div class="mb-3">
-                <div class="text-align-group">
-                    <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
-                    </button>
-                    <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
-                    </button>
-                    <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
-                    </button>
-                    <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        const checkboxHTML = `
-            <div class="flex gap-4 mb-3">
-                <div class="flex-1">${this._createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}</div>
-                <div class="flex-1">${this._createSidebarCheckbox('multiLine', 'רב שורה', el.multiLine || false)}</div>
-            </div>
-        `;
-
-        container.innerHTML = `
-            <div class="flex gap-2 mb-3 items-end">
-                <div class="flex-grow">
-                    ${this._createSidebarSelect('fontFamily', 'שם גופן', el.fontFamily, FONT_FAMILIES)}
-                </div>
-                <div class="w-24">
-                    ${this._createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}
-                </div>
-            </div>
-            ${spacingHTML}
-            <div class="mb-3 flex gap-2 w-full items-start">
-                ${this._createColorPicker('color', 'צבע גופן', el.color)}
-                ${this._createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
-            </div>
-            ${shapeAndWeightHTML}
-            ${checkboxHTML}
-            ${textAlignHTML}
-        `;
-        return container;
-    }
-
-    _createImageEditorControls(el) {
-        const container = document.createElement('div');
-        const buttonText = el.src ? 'ערוך תמונה' : 'הוסף תמונה';
-        const buttonAction = el.src ? 'edit-image' : 'add-image';
-        container.innerHTML = `
-            <div class="flex gap-4 mb-3">
-                <div class="flex-1">${this._createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
-                <div class="flex-1">${this._createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
-            </div>
-            <button data-action="${buttonAction}" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">${buttonText}</button>
-        `;
-        return container;
-    }
-
-    _createClippingShapeEditorControls(el) {
-        const container = document.createElement('div');
-        container.innerHTML = `
-            <div class="flex gap-4 mb-3">
-                <div class="flex-1">${this._createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
-                <div class="flex-1">${this._createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
-            </div>
-            <button data-action="perform-clip" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">בצע חיתוך</button>
-        `;
-        return container;
-    }
-    
-    _createLayerControls() {
-        const div = document.createElement('div');
-        div.className = "layer-menu-container mt-4";
-        div.innerHTML = `
-            <button data-action="toggle-layer-menu" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors flex justify-between items-center">
-                <span class="flex items-center gap-2">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
-                    <span>סדר</span>
-                </span>
-                <svg class="dropdown-arrow h-5 w-5 transition-transform" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-            </button>
-            <div id="layer-menu" class="layer-menu hidden">
-                <button data-action="bring-to-front" class="layer-menu-item">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/></svg>
-                    <span>הבא לחזית</span>
-                </button>
-                <button data-action="send-to-back" class="layer-menu-item">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="5" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="5" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
-                    <span>העבר לרקע</span>
-                </button>
-                <button data-action="layer-up" class="layer-menu-item">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/></svg>
-                    <span>הבא קדימה</span>
-                </button>
-                <button data-action="layer-down" class="layer-menu-item">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg>
-                    <span>העבר אחורה</span>
-                </button>
-            </div>
-        `;
-        return div;
-    }
-    
-    _createDeleteButton() {
-        const button = document.createElement('button');
-        button.dataset.action = "delete";
-        button.className = "w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg";
-        button.textContent = "מחק אלמנט";
-        return button;
-    }
-
-    _createColorPicker = (prop, label, value, customClass = '') => {
-        const isTransparent = value === 'transparent';
-        const displayValue = isTransparent ? 'transparent' : value;
-
-        const PREDEFINED_COLORS = [
-            ['#fde047', '#3b82f6', '#22c55e', '#ef4444', '#ffffff', '#000000'],
-            ['#475569', '#64748b', '#94a3b8', '#cbd5e1', '#60a5fa', '#a855f7']
-        ];
-
-        let gridHTML = PREDEFINED_COLORS.map(row => 
-            `<div class="flex gap-1">` +
-            row.map(color => 
-                `<button type="button" class="color-swatch-btn" data-color="${color}" style="background-color: ${color};" title="${color}"></button>`
-            ).join('') +
-            `</div>`
-        ).join('');
-
-        return `
-            <div class="flex-1">
-                <div class="custom-color-picker ${customClass}" data-property="${prop}" data-value="${displayValue}">
-                    <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
-                    <button type="button" class="color-display-btn" aria-haspopup="true" aria-expanded="false">
-                        <span class="color-swatch-display ${isTransparent ? 'is-transparent-swatch' : ''}" style="background-color: ${isTransparent ? '#fff' : value};"></span>
-                    </button>
-                    <div class="color-popover hidden">
-                        <div class="space-y-1 mb-2">
-                            ${gridHTML}
-                        </div>
-                        <div class="flex items-center gap-2 pt-2 border-t border-slate-600">
-                            <button type="button" class="color-swatch-btn is-transparent-swatch" data-color="transparent" title="ללא צבע"></button>
-                            <div class="relative flex-1 custom-color-input-wrapper">
-                                <input type="color" value="${isTransparent ? '#ffffff' : value}" class="native-color-picker" aria-label="Custom color">
-                                <span class="inline-block align-middle ml-2 text-sm">מותאם אישית</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    _createSidebarInput = (type, prop, label, value, attrs = {}) => `
-        <div>
-            <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
-            <input type="${type}" data-property="${prop}" value="${value}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" ${Object.entries(attrs).map(([k,v]) => `${k}="${v}"`).join(' ')} />
-        </div>`;
-
-    _createSidebarSelect = (prop, label, value, options) => `
-        <div>
-            <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
-            <select data-property="${prop}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
-                ${options.map(o => `<option value="${o}" ${o == value ? 'selected' : ''}>${o}</option>`).join('')}
-            </select>
-        </div>`;
-
-    _createSidebarCheckbox = (prop, label, value) => `
-        <div class="flex items-center">
-            <input type="checkbox" data-property="${prop}" ${value ? 'checked' : ''} id="checkbox-${prop}" class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" />
-            <label for="checkbox-${prop}" class="mr-2 text-sm font-medium text-slate-300">${label}</label>
-        </div>`;
         
     // --- Event Handlers ---
-
-    _handleSaveTemplate() {
-        const name = this.state.templateName.trim();
-        if (!name) { alert('יש להזין שם לתבנית.'); return; }
-
-        const newTemplate = {
-            name,
-            width: this.state.coverWidth, height: this.state.coverHeight,
-            backgroundColor: this.state.backgroundColor,
-            elements: this.state.elements,
-        };
-
-        let userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-        const existingIndex = userTemplates.findIndex(t => t.name === name);
-        if (existingIndex > -1) userTemplates[existingIndex] = newTemplate;
-        else userTemplates.push(newTemplate);
-
-        localStorage.setItem('userTemplates', JSON.stringify(userTemplates));
-        alert(`התבנית "${name}" נשמרה בהצלחה!`);
-        this._setDirty(false);
-        this._loadAllTemplates();
-    }
-
-    _handleExportTemplate() {
-        const name = this.state.templateName.trim() || 'Untitled Template';
-        const templateObject = {
-            name, width: this.state.coverWidth, height: this.state.coverHeight,
-            backgroundColor: this.state.backgroundColor,
-            elements: this.state.elements,
-        };
-
-        const blob = new Blob([JSON.stringify(templateObject, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${name.replace(/ /g, '_')}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    async _handleExportImage() {
-        const button = this.dom.exportImageBtn;
-        const originalButtonHTML = button.innerHTML;
-        button.innerHTML = `
-            <svg class="animate-spin h-5 w-5 -ml-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>מעבד...</span>`;
-        button.disabled = true;
-        button.classList.add('flex', 'items-center', 'justify-center');
-
-        const selectedElDOM = this.dom.coverBoundary.querySelector('.selected');
-        if (selectedElDOM) {
-            selectedElDOM.classList.remove('selected');
-        }
-
-        try {
-            const canvas = await html2canvas(this.dom.coverBoundary, {
-                scale: 2, // for higher quality
-                useCORS: true,
-                backgroundColor: this.state.backgroundColor,
-                logging: false,
-            });
-            
-            const a = document.createElement('a');
-            a.href = canvas.toDataURL('image/png');
-            const fileName = this.state.templateName.trim().replace(/ /g, '_') || 'magazine-cover';
-            a.download = `${fileName}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-        } catch (error) {
-            console.error('Error exporting image:', error);
-            alert('שגיאה בשמירת התמונה.');
-        } finally {
-            if (selectedElDOM) {
-                selectedElDOM.classList.add('selected');
-            }
-            button.innerHTML = originalButtonHTML;
-            button.disabled = false;
-            button.classList.remove('flex', 'items-center', 'justify-center');
-        }
-    }
-
+    
     _handleElementImageUpload(e) {
         const file = e.target.files && e.target.files[0];
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
@@ -902,16 +342,16 @@ class MagazineEditor {
         }
         
         // When a new image is uploaded for an element, reset its crop data.
-        this._updateSelectedElement({ cropData: null });
+        this.updateSelectedElement({ cropData: null });
         
         const reader = new FileReader();
         reader.onload = (event) => {
             const originalSrc = event.target.result;
-            this._updateSelectedElement({ originalSrc });
+            this.updateSelectedElement({ originalSrc });
             
             const img = new Image();
             img.onload = () => {
-                this._openImageEditorModal(originalSrc, img, selectedEl);
+                this.imageEditor.open(originalSrc, img, selectedEl);
             };
             img.onerror = () => alert("לא ניתן היה לטעון את קובץ התמונה.");
             img.src = originalSrc;
@@ -940,7 +380,7 @@ class MagazineEditor {
         if (!picker) return;
         const prop = picker.dataset.property;
 
-        this._updateSelectedElement({ [prop]: color });
+        this.updateSelectedElement({ [prop]: color });
 
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
@@ -965,7 +405,7 @@ class MagazineEditor {
         if (!picker) return;
 
         const prop = picker.dataset.property;
-        this._updateSelectedElement({ [prop]: color });
+        this.updateSelectedElement({ [prop]: color });
 
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
@@ -1018,7 +458,7 @@ class MagazineEditor {
                 return;
             }
             
-            this._updateSelectedElement({ [prop]: value });
+            this.updateSelectedElement({ [prop]: value });
     
             if (prop === 'multiLine') {
                 this.renderCover();
@@ -1063,7 +503,7 @@ class MagazineEditor {
             'layer-down': () => this._reorderElement('down'),
             'align-text': () => {
                 const align = actionTarget.dataset.align;
-                this._updateSelectedElement({ textAlign: align });
+                this.updateSelectedElement({ textAlign: align });
                 this.renderSidebar();
             },
             'perform-clip': () => this._performClip(),
@@ -1083,7 +523,7 @@ class MagazineEditor {
 
         const img = new Image();
         img.onload = () => {
-             this._openImageEditorModal(source, img, el);
+             this.imageEditor.open(source, img, el);
         }
         img.onerror = () => {
             alert('לא ניתן לטעון את התמונה לעריכה.');
@@ -1190,7 +630,7 @@ class MagazineEditor {
             textContainer.contentEditable = false;
             const newText = textContainer.innerText || '';
             if (originalText !== newText) {
-                this._updateSelectedElement({ text: newText });
+                this.updateSelectedElement({ text: newText });
             }
             this.state.inlineEditingElementId = null;
         };
@@ -1444,526 +884,6 @@ class MagazineEditor {
         this.state.selectedElementId = null;
         this._setDirty(true);
         this.render();
-    }
-
-    // --- Image Editor Modal Logic ---
-
-     _handleImageEditorReplace() {
-        this.dom.elementImageUploadInput.click();
-    }
-
-    _openImageEditorModal(fileOrSrc, image, targetElement) {
-        const isReplacing = !!this.imageEditorState;
-        
-        // Reset accordion states
-        this.dom.imageEditorAccordionContainer.querySelectorAll('.accordion-panel.open').forEach(panel => {
-            panel.classList.remove('open');
-        });
-        this.dom.imageEditorAccordionContainer.querySelectorAll('.accordion-toggle[aria-expanded="true"]').forEach(toggle => {
-            toggle.setAttribute('aria-expanded', 'false');
-        });
-
-        this.imageEditorState = {
-            image, imageUrl: fileOrSrc, swappedImageUrl: null, targetElement,
-            zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
-            isDragging: false, startPan: { x: 0, y: 0 }, startMouse: { x: 0, y: 0 },
-            filters: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
-            frameOffset: { left: 0, top: 0 },
-            isPickingColor: false,
-            colorSwap: { sources: [], target: '#ff0000', tolerance: 20 },
-            originalImageData: null,
-            offscreenCanvas: null,
-            offscreenCtx: null,
-        };
-
-        // Setup an offscreen canvas for image processing to avoid repeated calculations
-        this.imageEditorState.offscreenCanvas = document.createElement('canvas');
-        this.imageEditorState.offscreenCanvas.width = image.naturalWidth;
-        this.imageEditorState.offscreenCanvas.height = image.naturalHeight;
-        this.imageEditorState.offscreenCtx = this.imageEditorState.offscreenCanvas.getContext('2d');
-        this.imageEditorState.offscreenCtx.drawImage(image, 0, 0);
-        this.imageEditorState.originalImageData = this.imageEditorState.offscreenCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight);
-        
-        this.dom.imagePreviewImg.src = fileOrSrc;
-        this.dom.imageEditorModal.classList.remove('hidden');
-
-        const { sourceRes, targetRes, imagePreviewFrame, imagePreviewImg, imagePreviewContainer, zoomSlider } = this.dom;
-        sourceRes.textContent = `${image.naturalWidth}x${image.naturalHeight}`;
-        targetRes.textContent = `${Math.round(targetElement.width)}x${Math.round(targetElement.height)}`;
-        
-        const containerW = imagePreviewContainer.offsetWidth;
-        const containerH = imagePreviewContainer.offsetHeight;
-
-        // Use the element's actual dimensions for the frame, scaling down if it exceeds the container.
-        let finalFrameW = targetElement.width;
-        let finalFrameH = targetElement.height;
-        const maxFrameW = containerW - 20;
-        const maxFrameH = containerH - 20;
-
-        if (finalFrameW > maxFrameW || finalFrameH > maxFrameH) {
-            const widthScale = maxFrameW / finalFrameW;
-            const heightScale = maxFrameH / finalFrameH;
-            const scale = Math.min(widthScale, heightScale);
-            finalFrameW *= scale;
-            finalFrameH *= scale;
-        }
-        
-        imagePreviewFrame.style.width = `${finalFrameW}px`;
-        imagePreviewFrame.style.height = `${finalFrameH}px`;
-        const frameLeft = (containerW - finalFrameW) / 2;
-        const frameTop = (containerH - finalFrameH) / 2;
-        imagePreviewFrame.style.left = `${frameLeft}px`;
-        imagePreviewFrame.style.top = `${frameTop}px`;
-        this.imageEditorState.frameOffset = { left: frameLeft, top: frameTop };
-        
-        const sourceW = image.naturalWidth;
-        const sourceH = image.naturalHeight;
-
-        const zoomFor100Percent = finalFrameW / targetElement.width;
-        const minZoomToFill = Math.max(finalFrameW / sourceW, finalFrameH / sourceH);
-
-        let minZoom, maxZoom, initialZoom;
-        
-        // This condition is true if image is smaller than target element, or has an aspect ratio 
-        // that would require upscaling beyond 1:1 to fill the frame.
-        const needsUpscalingToFill = minZoomToFill > zoomFor100Percent;
-
-        if (needsUpscalingToFill) {
-            // Display at its natural proportional size (100%), centered, and disable zoom.
-            minZoom = zoomFor100Percent;
-            maxZoom = zoomFor100Percent;
-            initialZoom = zoomFor100Percent;
-            zoomSlider.disabled = true;
-        } else {
-            // Image is larger than target. Allow zooming from "fill" up to "100%".
-            minZoom = minZoomToFill;
-            maxZoom = zoomFor100Percent;
-            initialZoom = minZoom; // Start fully zoomed out
-            zoomSlider.disabled = (Math.abs(maxZoom - minZoom) < 0.01);
-        }
-
-        this.imageEditorState.minZoom = minZoom;
-        
-        imagePreviewImg.style.width = `${sourceW}px`;
-        imagePreviewImg.style.height = `${sourceH}px`;
-
-        if (targetElement.cropData) {
-            // Clamp the loaded zoom to the new valid range
-            this.imageEditorState.zoom = Math.max(minZoom, Math.min(maxZoom, targetElement.cropData.zoom));
-            this.imageEditorState.pan = targetElement.cropData.pan;
-            this.imageEditorState.filters = { ...targetElement.cropData.filters };
-             if (targetElement.cropData.colorSwap) {
-                // Backward compatibility for old single-source format
-                const sources = targetElement.cropData.colorSwap.sources || (targetElement.cropData.colorSwap.source ? [targetElement.cropData.colorSwap.source] : []);
-                this.imageEditorState.colorSwap = { 
-                    ...targetElement.cropData.colorSwap,
-                    sources,
-                };
-            }
-        } else {
-            this.imageEditorState.zoom = initialZoom;
-            this._centerImageInFrame();
-        }
-
-        this._updateColorSwapUI();
-        this._applyColorSwapPreview(); // This also calls _updateImageEditorPreview
-
-        zoomSlider.min = minZoom;
-        zoomSlider.max = maxZoom;
-        zoomSlider.value = this.imageEditorState.zoom;
-        zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
-        
-        if (!isReplacing) this._setupImageEditorEvents();
-    }
-
-    _closeImageEditorModal() {
-        if (this.imageEditorState && this.imageEditorState.isPickingColor) {
-            this._toggleColorPickMode(false);
-        }
-        this.imageEditorState = null;
-        this.dom.imageEditorModal.classList.add('hidden');
-        this.dom.imagePreviewImg.style.filter = '';
-        this.dom.imagePreviewWrapper.removeEventListener('mousedown', this._imagePanStart);
-        this.dom.imagePreviewContainer.removeEventListener('click', this._handleColorPick);
-        document.removeEventListener('mousemove', this._imagePanMove);
-        document.removeEventListener('mouseup', this._imagePanEnd);
-        this.dom.zoomSlider.removeEventListener('input', this._imageZoom);
-        
-        const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
-        sliders.forEach(slider => slider.removeEventListener('input', this._handleFilterChange));
-        this.dom.resetFiltersBtn.removeEventListener('click', this._resetFilters);
-
-        this.dom.pickColorBtn.removeEventListener('click', this._toggleColorPickMode);
-        this.dom.targetColorPicker.removeEventListener('input', this._handleTargetColorChange);
-        this.dom.colorToleranceSlider.removeEventListener('input', this._handleToleranceChange);
-        this.dom.resetColorSwapBtn.removeEventListener('click', this._resetColorSwap);
-        this.dom.sourceColorsContainer.removeEventListener('click', this._handleRemoveSourceColor);
-    }
-
-    _setupImageEditorEvents() {
-        this._imagePanStart = this._imagePanStart.bind(this);
-        this._imagePanMove = this._imagePanMove.bind(this);
-        this._imagePanEnd = this._imagePanEnd.bind(this);
-        this._imageZoom = this._imageZoom.bind(this);
-        this._handleFilterChange = this._handleFilterChange.bind(this);
-        this._resetFilters = this._resetFilters.bind(this);
-        this._toggleColorPickMode = this._toggleColorPickMode.bind(this);
-        this._handleColorPick = this._handleColorPick.bind(this);
-        this._handleTargetColorChange = this._handleTargetColorChange.bind(this);
-        this._handleToleranceChange = this._handleToleranceChange.bind(this);
-        this._resetColorSwap = this._resetColorSwap.bind(this);
-        this._handleRemoveSourceColor = this._handleRemoveSourceColor.bind(this);
-        
-        this.dom.imagePreviewWrapper.addEventListener('mousedown', this._imagePanStart);
-        this.dom.imagePreviewContainer.addEventListener('click', this._handleColorPick);
-        document.addEventListener('mousemove', this._imagePanMove);
-        document.addEventListener('mouseup', this._imagePanEnd);
-        this.dom.zoomSlider.addEventListener('input', this._imageZoom);
-
-        const sliders = this.dom.imageEditorModal.querySelectorAll('input[type="range"][data-filter]');
-        sliders.forEach(slider => slider.addEventListener('input', this._handleFilterChange));
-        this.dom.resetFiltersBtn.addEventListener('click', this._resetFilters);
-        
-        this.dom.pickColorBtn.addEventListener('click', this._toggleColorPickMode);
-        this.dom.targetColorPicker.addEventListener('input', this._handleTargetColorChange);
-        this.dom.colorToleranceSlider.addEventListener('input', this._handleToleranceChange);
-        this.dom.resetColorSwapBtn.addEventListener('click', this._resetColorSwap);
-        this.dom.sourceColorsContainer.addEventListener('click', this._handleRemoveSourceColor);
-    }
-    
-    _centerImageInFrame() {
-        if (!this.imageEditorState) return;
-        const { image, zoom, frameOffset } = this.imageEditorState;
-        const frame = this.dom.imagePreviewFrame;
-        const scaledW = image.naturalWidth * zoom;
-        const scaledH = image.naturalHeight * zoom;
-        this.imageEditorState.pan = { 
-            x: frameOffset.left + (frame.offsetWidth - scaledW) / 2, 
-            y: frameOffset.top + (frame.offsetHeight - scaledH) / 2 
-        };
-        this._clampImagePan();
-    }
-
-    _getFilterString() {
-        if (!this.imageEditorState || !this.imageEditorState.filters) return '';
-        const { brightness, contrast, saturation, grayscale, sepia } = this.imageEditorState.filters;
-        return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
-    }
-    
-    _updateFilterSliders() {
-        if (!this.imageEditorState || !this.imageEditorState.filters) return;
-        const { brightness, contrast, saturation, grayscale, sepia } = this.imageEditorState.filters;
-        this.dom.brightnessSlider.value = brightness;
-        this.dom.contrastSlider.value = contrast;
-        this.dom.saturationSlider.value = saturation;
-        this.dom.grayscaleSlider.value = grayscale;
-        this.dom.sepiaSlider.value = sepia;
-    }
-    
-    _handleFilterChange(e) {
-        if (!this.imageEditorState) return;
-        const filter = e.target.dataset.filter;
-        const value = e.target.value;
-        this.imageEditorState.filters[filter] = parseInt(value, 10);
-        this._updateImageEditorPreview();
-    }
-
-    _resetFilters() {
-        if (!this.imageEditorState) return;
-        this.imageEditorState.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
-        this._updateFilterSliders();
-        this._updateImageEditorPreview();
-    }
-    
-    _updateImageEditorPreview() {
-        if (!this.imageEditorState) return;
-        const { zoom, pan } = this.imageEditorState;
-        this.dom.imagePreviewImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
-        this.dom.imagePreviewImg.style.filter = this._getFilterString();
-    }
-    
-    _imageZoom(e) {
-        if (!this.imageEditorState) return;
-        const oldZoom = this.imageEditorState.zoom;
-        const newZoom = parseFloat(e.target.value);
-
-        const { pan } = this.imageEditorState;
-        
-        const containerRect = this.dom.imagePreviewContainer.getBoundingClientRect();
-        // Use center of frame as zoom origin
-        const mouseX = containerRect.left + this.imageEditorState.frameOffset.left + this.dom.imagePreviewFrame.offsetWidth / 2;
-        const mouseY = containerRect.top + this.imageEditorState.frameOffset.top + this.dom.imagePreviewFrame.offsetHeight / 2;
-        
-        const imageX = (mouseX - containerRect.left - pan.x) / oldZoom;
-        const imageY = (mouseY - containerRect.top - pan.y) / oldZoom;
-        
-        const newPanX = (mouseX - containerRect.left) - imageX * newZoom;
-        const newPanY = (mouseY - containerRect.top) - imageY * newZoom;
-        
-        this.imageEditorState.zoom = newZoom;
-        this.imageEditorState.pan = { x: newPanX, y: newPanY };
-
-        this._clampImagePan();
-        this._updateImageEditorPreview();
-    }
-
-    _imagePanStart(e) {
-        e.preventDefault();
-        if (!this.imageEditorState || this.imageEditorState.isPickingColor) return;
-        this.imageEditorState.isDragging = true;
-        this.imageEditorState.startMouse = { x: e.clientX, y: e.clientY };
-        this.imageEditorState.startPan = { ...this.imageEditorState.pan };
-    }
-
-    _imagePanMove(e) {
-        if (!this.imageEditorState?.isDragging) return;
-        e.preventDefault();
-        const { startMouse, startPan } = this.imageEditorState;
-        this.imageEditorState.pan.x = startPan.x + (e.clientX - startMouse.x);
-        this.imageEditorState.pan.y = startPan.y + (e.clientY - startMouse.y);
-        this._clampImagePan();
-        this._updateImageEditorPreview();
-    }
-    
-    _clampImagePan() {
-        if (!this.imageEditorState) return;
-        const { pan, image, zoom, frameOffset } = this.imageEditorState;
-        const frame = this.dom.imagePreviewFrame;
-        const scaledW = image.naturalWidth * zoom;
-        const scaledH = image.naturalHeight * zoom;
-        const { left: frameLeft, top: frameTop } = frameOffset;
-
-        let minX, maxX, minY, maxY;
-
-        if (scaledW > frame.offsetWidth) {
-            // Image is wider than the frame, can be panned left/right
-            minX = frameLeft + frame.offsetWidth - scaledW;
-            maxX = frameLeft;
-        } else {
-            // Image is narrower than the frame, so lock it in the center.
-            minX = maxX = frameLeft + (frame.offsetWidth - scaledW) / 2;
-        }
-    
-        if (scaledH > frame.offsetHeight) {
-            // Image is taller than the frame, can be panned up/down
-            minY = frameTop + frame.offsetHeight - scaledH;
-            maxY = frameTop;
-        } else {
-            // Image is shorter than the frame, so lock it in the center.
-            minY = maxY = frameTop + (frame.offsetHeight - scaledH) / 2;
-        }
-
-        pan.x = Math.max(minX, Math.min(maxX, pan.x));
-        pan.y = Math.max(minY, Math.min(maxY, pan.y));
-    }
-
-    _imagePanEnd() {
-        if (!this.imageEditorState) return;
-        this.imageEditorState.isDragging = false;
-    }
-
-    _handleImageEditorConfirm() {
-        if (!this.imageEditorState) return;
-        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap } = this.imageEditorState;
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = image.naturalWidth;
-        tempCanvas.height = image.naturalHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(image, 0, 0);
-
-        if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            this._applyColorSwapToImageData(imageData, colorSwap);
-            tempCtx.putImageData(imageData, 0, 0);
-        }
-
-        const imageToDraw = tempCanvas;
-        
-        const finalCanvas = document.createElement('canvas');
-        finalCanvas.width = targetElement.width;
-        finalCanvas.height = targetElement.height;
-        const ctx = finalCanvas.getContext('2d');
-        ctx.filter = this._getFilterString();
-        
-        const sX = (frameOffset.left - pan.x) / zoom;
-        const sY = (frameOffset.top - pan.y) / zoom;
-        const sW = this.dom.imagePreviewFrame.offsetWidth / zoom;
-        const sH = this.dom.imagePreviewFrame.offsetHeight / zoom;
-
-        ctx.drawImage(imageToDraw, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
-        
-        const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters, colorSwap };
-        this._updateSelectedElement({ src: dataUrl, cropData });
-        this._closeImageEditorModal();
-        this.renderSidebar();
-    }
-    
-    // --- Color Swap Logic ---
-
-    _toggleColorPickMode(forceState = null) {
-        if (!this.imageEditorState) return;
-        const shouldBePicking = forceState !== null ? forceState : !this.imageEditorState.isPickingColor;
-        this.imageEditorState.isPickingColor = shouldBePicking;
-        this.dom.imageEditorModal.classList.toggle('color-picking-mode', shouldBePicking);
-    }
-    
-    _handleColorPick(e) {
-        if (!this.imageEditorState || !this.imageEditorState.isPickingColor) return;
-
-        const rect = e.target.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        const { image, zoom, pan, originalImageData } = this.imageEditorState;
-        
-        const imgX = Math.floor((x - pan.x) / zoom);
-        const imgY = Math.floor((y - pan.y) / zoom);
-        
-        if (imgX < 0 || imgX >= image.naturalWidth || imgY < 0 || imgY >= image.naturalHeight) return;
-
-        const i = (imgY * image.naturalWidth + imgX) * 4;
-        const r = originalImageData.data[i];
-        const g = originalImageData.data[i + 1];
-        const b = originalImageData.data[i + 2];
-        
-        const newSource = { r, g, b };
-        const isDuplicate = this.imageEditorState.colorSwap.sources.some(s => s.r === newSource.r && s.g === newSource.g && s.b === newSource.b);
-        
-        if (!isDuplicate) {
-            this.imageEditorState.colorSwap.sources.push(newSource);
-        }
-
-        this._updateColorSwapUI();
-        this._applyColorSwapPreview();
-        this._toggleColorPickMode(false);
-    }
-
-    _handleRemoveSourceColor(e) {
-        const removeBtn = e.target.closest('.source-color-swatch');
-        if (removeBtn && this.imageEditorState) {
-            const index = parseInt(removeBtn.dataset.index, 10);
-            if (!isNaN(index)) {
-                this.imageEditorState.colorSwap.sources.splice(index, 1);
-                this._updateColorSwapUI();
-                this._applyColorSwapPreview();
-            }
-        }
-    }
-
-    _handleTargetColorChange(e) {
-        if (!this.imageEditorState) return;
-        this.imageEditorState.colorSwap.target = e.target.value;
-        this._updateColorSwapUI();
-        if (this.imageEditorState.colorSwap.sources.length > 0) {
-            this._applyColorSwapPreview();
-        }
-    }
-    
-    _handleToleranceChange(e) {
-        if (!this.imageEditorState) return;
-        this.imageEditorState.colorSwap.tolerance = parseInt(e.target.value, 10);
-        this._updateColorSwapUI();
-        if (this.imageEditorState.colorSwap.sources.length > 0) {
-            this._applyColorSwapPreview();
-        }
-    }
-
-    _resetColorSwap() {
-        if (!this.imageEditorState) return;
-        this.imageEditorState.colorSwap.sources = [];
-        this.imageEditorState.colorSwap.target = '#ff0000';
-        this.imageEditorState.colorSwap.tolerance = 20;
-        this._updateColorSwapUI();
-        this._applyColorSwapPreview();
-    }
-    
-    _updateColorSwapUI() {
-        if (!this.imageEditorState) return;
-        const { sources, target, tolerance } = this.imageEditorState.colorSwap;
-        
-        this.dom.sourceColorsContainer.innerHTML = '';
-        sources.forEach((source, index) => {
-            const swatch = document.createElement('button');
-            swatch.className = 'source-color-swatch';
-            swatch.style.backgroundColor = `rgb(${source.r}, ${source.g}, ${source.b})`;
-            swatch.dataset.index = index;
-            swatch.title = 'הסר צבע זה';
-            swatch.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="source-color-trash-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
-            this.dom.sourceColorsContainer.appendChild(swatch);
-        });
-        
-        this.dom.targetColorSwatch.style.backgroundColor = target;
-        this.dom.targetColorPicker.value = target;
-        this.dom.colorToleranceSlider.value = tolerance;
-        this.dom.toleranceValue.textContent = tolerance;
-    }
-
-    _applyColorSwapPreview() {
-        if (!this.imageEditorState) return;
-        const { imageUrl, colorSwap, offscreenCanvas, offscreenCtx, originalImageData } = this.imageEditorState;
-        
-        if (!colorSwap.sources || colorSwap.sources.length === 0) {
-            this.imageEditorState.swappedImageUrl = null;
-            this.dom.imagePreviewImg.src = imageUrl;
-            this._updateImageEditorPreview();
-            return;
-        }
-
-        const newImageData = new ImageData(
-            new Uint8ClampedArray(originalImageData.data),
-            originalImageData.width,
-            originalImageData.height
-        );
-        
-        this._applyColorSwapToImageData(newImageData, colorSwap);
-        
-        offscreenCtx.putImageData(newImageData, 0, 0);
-        const swappedUrl = offscreenCanvas.toDataURL();
-        this.imageEditorState.swappedImageUrl = swappedUrl;
-        
-        this.dom.imagePreviewImg.src = swappedUrl;
-        this._updateImageEditorPreview();
-    }
-    
-    _applyColorSwapToImageData(imageData, colorSwap) {
-        const data = imageData.data;
-        const sourcesRgb = colorSwap.sources;
-        if (sourcesRgb.length === 0) return;
-        
-        const targetRgb = this._hexToRgb(colorSwap.target);
-        const tolerance = colorSwap.tolerance;
-        
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            
-            for (const sourceRgb of sourcesRgb) {
-                 const distance = Math.sqrt(
-                    Math.pow(r - sourceRgb.r, 2) +
-                    Math.pow(g - sourceRgb.g, 2) +
-                    Math.pow(b - sourceRgb.b, 2)
-                );
-                
-                if (distance < tolerance) {
-                    data[i] = targetRgb.r;
-                    data[i + 1] = targetRgb.g;
-                    data[i + 2] = targetRgb.b;
-                    break; // Move to next pixel after a match
-                }
-            }
-        }
-    }
-    
-    _hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : null;
     }
     
     // --- End Color Swap ---
