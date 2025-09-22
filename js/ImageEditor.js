@@ -3,6 +3,7 @@ export class ImageEditor {
         this.editor = editor;
         this.state = null;
         this._cacheDom();
+        this._setupEvents();
     }
 
     _cacheDom() {
@@ -35,9 +36,7 @@ export class ImageEditor {
         };
     }
 
-    open(fileOrSrc, image, targetElement) {
-        const isReplacing = !!this.state;
-
+    open(fileOrSrc, image, targetElement, preUploadState = null) {
         this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => p.classList.remove('open'));
         this.dom.accordionContainer.querySelectorAll('.accordion-toggle[aria-expanded="true"]').forEach(t => t.setAttribute('aria-expanded', 'false'));
 
@@ -50,6 +49,7 @@ export class ImageEditor {
             isPickingColor: false,
             colorSwap: { sources: [], target: '#ff0000', tolerance: 20 },
             originalImageData: null, offscreenCanvas: null, offscreenCtx: null,
+            preUploadState: preUploadState, // Store the state to revert on cancel
         };
 
         this.state.offscreenCanvas = document.createElement('canvas');
@@ -126,12 +126,16 @@ export class ImageEditor {
         this.dom.zoomSlider.max = maxZoom;
         this.dom.zoomSlider.value = this.state.zoom;
         this.dom.zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
-
-        if (!isReplacing) this._setupEvents();
     }
 
     close() {
         if (this.state && this.state.isPickingColor) this._toggleColorPickMode(false);
+        
+        // If this was a replacement that was cancelled, restore the original state.
+        if (this.state && this.state.preUploadState) {
+            this.editor.updateSelectedElement(this.state.preUploadState);
+        }
+
         this.state = null;
         this.dom.modal.classList.add('hidden');
         this.dom.previewImg.style.filter = '';
@@ -274,6 +278,12 @@ export class ImageEditor {
         const dataUrl = finalCanvas.toDataURL('image/png');
         const cropData = { zoom, pan, filters, colorSwap };
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
+        
+        // Nullify preUploadState so close() doesn't revert our changes.
+        if (this.state) {
+            this.state.preUploadState = null;
+        }
+
         this.close();
         this.editor.renderSidebar();
     }

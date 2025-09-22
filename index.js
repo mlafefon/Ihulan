@@ -342,20 +342,26 @@ class MagazineEditor {
             e.target.value = null; return;
         }
         
-        // When a new image is uploaded for an element, reset its crop data.
-        this.updateSelectedElement({ cropData: null });
+        // Store the original state before updating for the new image.
+        const preUploadState = {
+            src: selectedEl.src,
+            originalSrc: selectedEl.originalSrc,
+            cropData: selectedEl.cropData ? JSON.parse(JSON.stringify(selectedEl.cropData)) : null,
+        };
         
         const reader = new FileReader();
         reader.onload = (event) => {
-            const originalSrc = event.target.result;
-            this.updateSelectedElement({ originalSrc });
+            const newOriginalSrc = event.target.result;
+            // Temporarily update the element for the editor session to show the new image.
+            this.updateSelectedElement({ originalSrc: newOriginalSrc, src: newOriginalSrc, cropData: null });
             
             const img = new Image();
             img.onload = () => {
-                this.imageEditor.open(originalSrc, img, selectedEl);
+                // Pass the pre-upload state to the editor so it can revert on cancel.
+                this.imageEditor.open(newOriginalSrc, img, selectedEl, preUploadState);
             };
             img.onerror = () => alert("לא ניתן היה לטעון את קובץ התמונה.");
-            img.src = originalSrc;
+            img.src = newOriginalSrc;
         };
         reader.readAsDataURL(file);
         
@@ -529,7 +535,8 @@ class MagazineEditor {
 
         const img = new Image();
         img.onload = () => {
-             this.imageEditor.open(source, img, el);
+             // Pass null for preUploadState, as we're just editing, not replacing.
+             this.imageEditor.open(source, img, el, null);
         }
         img.onerror = () => {
             alert('לא ניתן לטעון את התמונה לעריכה.');
