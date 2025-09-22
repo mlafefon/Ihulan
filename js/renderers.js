@@ -57,8 +57,10 @@ const _createSidebarHeader = (title) => {
     div.className = "flex justify-between items-center gap-4";
     div.innerHTML = `
         <h3 class="text-xl font-bold text-white flex-grow truncate">${title}</h3>
-        <button data-action="deselect-element" title="ביטול בחירה" class="flex-shrink-0 p-1 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        <button data-action="deselect-element" title="חזרה" class="flex-shrink-0 p-1 rounded-md bg-slate-600 text-white hover:bg-slate-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+            </svg>
         </button>
     `;
     return div;
@@ -95,16 +97,31 @@ const _createTextEditorControls = (el) => {
             </div>
             <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
         </div>
-        <div class="flex gap-4 mb-3">
-            <div class="flex-1">${_createSidebarCheckbox('shadow', 'הוסף צל', el.shadow)}</div>
-            <div class="flex-1">${_createSidebarCheckbox('multiLine', 'רב שורה', el.multiLine || false)}</div>
-        </div>
-        <div class="mb-3">
-            <div class="text-align-group">
-                <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">יישור</label>
+                <div class="text-align-group">
+                    <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                    <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                    <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                    <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                </div>
+            </div>
+             <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">אפשרויות</label>
+                <div class="toggle-controls-group">
+                    <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+                            <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" opacity="0.4" transform="translate(1.5, 1.5)"/>
+                            <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="toggle-btn ${el.multiLine ? 'active' : ''}" data-action="toggle-property" data-property="multiLine" title="רב שורה" aria-pressed="${!!el.multiLine}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>`;
     return container;
@@ -258,7 +275,13 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
     if (el.id === state.selectedElementId && scale === 1) domEl.classList.add('selected');
     if (el.type === 'text') _applyTextStyles(domEl, el, scale);
     else if (el.type === 'image') { domEl.classList.add('element-type-image'); _applyImageStyles(domEl, el); }
-    else if (el.type === 'clipping-shape') domEl.classList.add('clipping-shape');
+    else if (el.type === 'clipping-shape') {
+        domEl.classList.add('clipping-shape');
+        const instructionText = document.createElement('div');
+        instructionText.className = 'clipping-shape-instructions';
+        instructionText.textContent = 'מקם את האליפסה מעל ראש הדמות, כדי לחתוך את הכותרת שמסתירה.';
+        domEl.appendChild(instructionText);
+    }
     if (el.id === state.selectedElementId && scale === 1) domEl.appendChild(_createTransformHandles());
     return domEl;
 }

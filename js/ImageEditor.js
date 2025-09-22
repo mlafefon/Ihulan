@@ -14,7 +14,7 @@ export class ImageEditor {
             previewImg: document.getElementById('image-preview-img'),
             zoomSlider: document.getElementById('zoom-slider'),
             confirmCropBtn: document.getElementById('confirm-crop-btn'),
-            cancelCropBtn: document.getElementById('cancel-crop-btn'),
+            imageEditorCloseBtn: document.getElementById('image-editor-close-btn'),
             replaceImageBtn: document.getElementById('replace-image-btn'),
             sourceRes: document.getElementById('source-res'),
             targetRes: document.getElementById('target-res'),
@@ -176,7 +176,7 @@ export class ImageEditor {
             }
         });
         this.dom.confirmCropBtn.addEventListener('click', () => this._handleConfirm());
-        this.dom.cancelCropBtn.addEventListener('click', () => this.close());
+        this.dom.imageEditorCloseBtn.addEventListener('click', () => this.close());
         this.dom.replaceImageBtn.addEventListener('click', () => this.editor.dom.elementImageUploadInput.click());
     }
 

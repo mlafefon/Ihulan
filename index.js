@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -430,9 +431,7 @@ class MagazineEditor {
             const prop = target.dataset.property;
             let value;
 
-            if (target.type === 'checkbox') {
-                value = target.checked;
-            } else if (target.type === 'number') {
+            if (target.type === 'number') {
                 value = parseFloat(target.value) || 0;
             } else {
                 value = target.value;
@@ -505,6 +504,13 @@ class MagazineEditor {
                 const align = actionTarget.dataset.align;
                 this.updateSelectedElement({ textAlign: align });
                 this.renderSidebar();
+            },
+            'toggle-property': () => {
+                const prop = actionTarget.dataset.property;
+                if (selectedEl) {
+                    this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                    this.renderSidebar();
+                }
             },
             'perform-clip': () => this._performClip(),
         };
