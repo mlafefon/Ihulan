@@ -1,7 +1,10 @@
+
 export class ImageEditor {
     constructor(editor) {
         this.editor = editor;
         this.state = null;
+        this.isDrawingBrush = false;
+        this.offscreenBrushCanvas = document.createElement('canvas');
         this._cacheDom();
         this._setupEvents();
     }
@@ -33,13 +36,19 @@ export class ImageEditor {
             toleranceValue: document.getElementById('tolerance-value'),
             resetColorSwapBtn: document.getElementById('reset-color-swap-btn'),
             accordionContainer: document.getElementById('image-editor-accordion-container'),
+            blurCanvas: document.getElementById('blur-canvas'),
+            markSharpAreaBtn: document.getElementById('mark-sharp-area-btn'),
+            applyBlurBtn: document.getElementById('apply-blur-btn'),
+            resetBlurBtn: document.getElementById('reset-blur-btn'),
         };
     }
 
-    open(fileOrSrc, image, targetElement, preUploadState = null) {
-        this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => p.classList.remove('open'));
-        this.dom.accordionContainer.querySelectorAll('.accordion-toggle[aria-expanded="true"]').forEach(t => t.setAttribute('aria-expanded', 'false'));
-
+    async open(fileOrSrc, image, targetElement, preUploadState = null) {
+        this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => {
+            p.classList.remove('open');
+            p.previousElementSibling.setAttribute('aria-expanded', 'false');
+        });
+        
         this.state = {
             image, imageUrl: fileOrSrc, swappedImageUrl: null, targetElement,
             zoom: 1, minZoom: 1, pan: { x: 0, y: 0 },
@@ -49,7 +58,12 @@ export class ImageEditor {
             isPickingColor: false,
             colorSwap: { sources: [], target: '#ff0000', tolerance: 20 },
             originalImageData: null, offscreenCanvas: null, offscreenCtx: null,
-            preUploadState: preUploadState, // Store the state to revert on cancel
+            preUploadState: preUploadState,
+            isBrushing: false,
+            blurCtx: null,
+            brushMaskPoints: [],
+            blurredImageUrl: null,
+            isBlurred: false,
         };
 
         this.state.offscreenCanvas = document.createElement('canvas');
@@ -78,14 +92,22 @@ export class ImageEditor {
             finalFrameW *= scale;
             finalFrameH *= scale;
         }
-
+        
         this.dom.previewFrame.style.width = `${finalFrameW}px`;
         this.dom.previewFrame.style.height = `${finalFrameH}px`;
+        this.dom.blurCanvas.style.width = `${finalFrameW}px`;
+        this.dom.blurCanvas.style.height = `${finalFrameH}px`;
+        this.dom.blurCanvas.width = finalFrameW;
+        this.dom.blurCanvas.height = finalFrameH;
+        
         const frameLeft = (containerW - finalFrameW) / 2;
         const frameTop = (containerH - finalFrameH) / 2;
-        this.dom.previewFrame.style.left = `${frameLeft}px`;
-        this.dom.previewFrame.style.top = `${frameTop}px`;
+        this.dom.previewFrame.style.left = this.dom.blurCanvas.style.left = `${frameLeft}px`;
+        this.dom.previewFrame.style.top = this.dom.blurCanvas.style.top = `${frameTop}px`;
+
         this.state.frameOffset = { left: frameLeft, top: frameTop };
+        this.state.blurCtx = this.dom.blurCanvas.getContext('2d');
+
 
         const zoomFor100Percent = finalFrameW / targetElement.width;
         const minZoomToFill = Math.max(finalFrameW / image.naturalWidth, finalFrameH / image.naturalHeight);
@@ -103,9 +125,7 @@ export class ImageEditor {
         }
 
         this.state.minZoom = minZoom;
-        this.dom.previewImg.style.width = `${image.naturalWidth}px`;
-        this.dom.previewImg.style.height = `${image.naturalHeight}px`;
-
+       
         if (targetElement.cropData) {
             this.state.zoom = Math.max(minZoom, Math.min(maxZoom, targetElement.cropData.zoom));
             this.state.pan = targetElement.cropData.pan;
@@ -114,11 +134,15 @@ export class ImageEditor {
                 const sources = targetElement.cropData.colorSwap.sources || (targetElement.cropData.colorSwap.source ? [targetElement.cropData.colorSwap.source] : []);
                 this.state.colorSwap = { ...targetElement.cropData.colorSwap, sources };
             }
+             if (targetElement.cropData.blurData) {
+                this.state.brushMaskPoints = targetElement.cropData.blurData.points;
+                await this._applyBlur();
+            }
         } else {
             this.state.zoom = initialZoom;
             this._centerImageInFrame();
         }
-
+        this._resetBlurState(false);
         this._updateColorSwapUI();
         this._applyColorSwapPreview();
 
@@ -126,32 +150,45 @@ export class ImageEditor {
         this.dom.zoomSlider.max = maxZoom;
         this.dom.zoomSlider.value = this.state.zoom;
         this.dom.zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
+        this._updateFilterSliders();
+        this._updateImageEditorPreview();
     }
 
     close() {
-        if (this.state && this.state.isPickingColor) this._toggleColorPickMode(false);
+        if (this.state && this.state.isBrushing) this._toggleBrushMode(false);
         
-        // If this was a replacement that was cancelled, restore the original state.
         if (this.state && this.state.preUploadState) {
             this.editor.updateSelectedElement(this.state.preUploadState);
         }
-
+        this._resetBlurState();
         this.state = null;
         this.dom.modal.classList.add('hidden');
         this.dom.previewImg.style.filter = '';
-        // Unbind events if they were bound with `bind(this)`
-        // This is simplified as the editor instance is short-lived in the main app
     }
 
     _setupEvents() {
         // Using arrow functions to preserve `this` context
-        this._imagePanStart = e => { e.preventDefault(); if (!this.state || this.state.isPickingColor) return; this.state.isDragging = true; this.state.startMouse = { x: e.clientX, y: e.clientY }; this.state.startPan = { ...this.state.pan }; };
+        this._imagePanStart = e => {
+            e.preventDefault();
+            if (!this.state || this.state.isBrushing || this.state.isPickingColor) return;
+            this.state.isDragging = true;
+            this.state.startMouse = { x: e.clientX, y: e.clientY };
+            this.state.startPan = { ...this.state.pan };
+            document.addEventListener('mousemove', this._imagePanMove);
+            document.addEventListener('mouseup', this._imagePanEnd);
+        };
         this._imagePanMove = e => { if (!this.state?.isDragging) return; e.preventDefault(); const { startMouse, startPan } = this.state; this.state.pan.x = startPan.x + (e.clientX - startMouse.x); this.state.pan.y = startPan.y + (e.clientY - startMouse.y); this._clampImagePan(); this._updateImageEditorPreview(); };
-        this._imagePanEnd = () => { if (!this.state) return; this.state.isDragging = false; };
+        this._imagePanEnd = () => {
+            if (!this.state) return;
+            this.state.isDragging = false;
+            document.removeEventListener('mousemove', this._imagePanMove);
+            document.removeEventListener('mouseup', this._imagePanEnd);
+        };
+
         this._imageZoom = e => { if (!this.state) return; const oldZoom = this.state.zoom; const newZoom = parseFloat(e.target.value); const { pan, frameOffset } = this.state; const containerRect = this.dom.previewContainer.getBoundingClientRect(); const mouseX = containerRect.left + frameOffset.left + this.dom.previewFrame.offsetWidth / 2; const mouseY = containerRect.top + frameOffset.top + this.dom.previewFrame.offsetHeight / 2; const imageX = (mouseX - containerRect.left - pan.x) / oldZoom; const imageY = (mouseY - containerRect.top - pan.y) / oldZoom; const newPanX = (mouseX - containerRect.left) - imageX * newZoom; const newPanY = (mouseY - containerRect.top) - imageY * newZoom; this.state.zoom = newZoom; this.state.pan = { x: newPanX, y: newPanY }; this._clampImagePan(); this._updateImageEditorPreview(); };
         this._handleFilterChange = e => { if (!this.state) return; this.state.filters[e.target.dataset.filter] = parseInt(e.target.value, 10); this._updateImageEditorPreview(); };
         this._resetFilters = () => { if (!this.state) return; this.state.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 }; this._updateFilterSliders(); this._updateImageEditorPreview(); };
-        this._toggleColorPickMode = (forceState = null) => { if (!this.state) return; const shouldBePicking = forceState !== null ? forceState : !this.state.isPickingColor; this.state.isPickingColor = shouldBePicking; this.dom.modal.classList.toggle('color-picking-mode', shouldBePicking); };
+        this._toggleColorPickMode = (forceState = null) => { if (!this.state) return; const shouldBePicking = forceState !== null ? forceState : !this.state.isPickingColor; this.state.isPickingColor = shouldBePicking; this.dom.modal.classList.toggle('color-picking-mode', shouldBePicking); this.dom.pickColorBtn.classList.toggle('active-picker-btn', shouldBePicking); };
         this._handleColorPick = e => { if (!this.state || !this.state.isPickingColor) return; const rect = e.target.getBoundingClientRect(); const x = e.clientX - rect.left; const y = e.clientY - rect.top; const { image, zoom, pan, originalImageData } = this.state; const imgX = Math.floor((x - pan.x) / zoom); const imgY = Math.floor((y - pan.y) / zoom); if (imgX < 0 || imgX >= image.naturalWidth || imgY < 0 || imgY >= image.naturalHeight) return; const i = (imgY * image.naturalWidth + imgX) * 4; const r = originalImageData.data[i]; const g = originalImageData.data[i + 1]; const b = originalImageData.data[i + 2]; const newSource = { r, g, b }; if (!this.state.colorSwap.sources.some(s => s.r === newSource.r && s.g === newSource.g && s.b === newSource.b)) { this.state.colorSwap.sources.push(newSource); } this._updateColorSwapUI(); this._applyColorSwapPreview(); this._toggleColorPickMode(false); };
         this._handleTargetColorChange = e => { if (!this.state) return; this.state.colorSwap.target = e.target.value; this._updateColorSwapUI(); if (this.state.colorSwap.sources.length > 0) this._applyColorSwapPreview(); };
         this._handleToleranceChange = e => { if (!this.state) return; this.state.colorSwap.tolerance = parseInt(e.target.value, 10); this._updateColorSwapUI(); if (this.state.colorSwap.sources.length > 0) this._applyColorSwapPreview(); };
@@ -160,8 +197,6 @@ export class ImageEditor {
         
         this.dom.previewWrapper.addEventListener('mousedown', this._imagePanStart);
         this.dom.previewContainer.addEventListener('click', this._handleColorPick);
-        document.addEventListener('mousemove', this._imagePanMove);
-        document.addEventListener('mouseup', this._imagePanEnd);
         this.dom.zoomSlider.addEventListener('input', this._imageZoom);
         this.dom.modal.querySelectorAll('input[type="range"][data-filter]').forEach(s => s.addEventListener('input', this._handleFilterChange));
         this.dom.resetFiltersBtn.addEventListener('click', this._resetFilters);
@@ -170,18 +205,44 @@ export class ImageEditor {
         this.dom.colorToleranceSlider.addEventListener('input', this._handleToleranceChange);
         this.dom.resetColorSwapBtn.addEventListener('click', this._resetColorSwap);
         this.dom.sourceColorsContainer.addEventListener('click', this._handleRemoveSourceColor);
+        
         this.dom.accordionContainer.addEventListener('click', e => {
             const toggleBtn = e.target.closest('.accordion-toggle');
             if (toggleBtn) {
-                const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
                 const panel = document.getElementById(toggleBtn.getAttribute('aria-controls'));
-                toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
-                panel.classList.toggle('open');
+                if (!panel) return;
+        
+                const isCurrentlyOpen = panel.classList.contains('open');
+        
+                this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => {
+                    if (p !== panel) {
+                        p.classList.remove('open');
+                        p.previousElementSibling.setAttribute('aria-expanded', 'false');
+                    }
+                });
+        
+                if (!isCurrentlyOpen) {
+                    panel.classList.add('open');
+                    toggleBtn.setAttribute('aria-expanded', 'true');
+                } else {
+                    panel.classList.remove('open');
+                    toggleBtn.setAttribute('aria-expanded', 'false');
+                }
             }
         });
+        
         this.dom.confirmCropBtn.addEventListener('click', () => this._handleConfirm());
         this.dom.imageEditorCloseBtn.addEventListener('click', () => this.close());
         this.dom.replaceImageBtn.addEventListener('click', () => this.editor.dom.elementImageUploadInput.click());
+
+        // Blur events
+        this.dom.markSharpAreaBtn.addEventListener('click', () => this._toggleBrushMode());
+        this.dom.applyBlurBtn.addEventListener('click', () => this._applyBlur());
+        this.dom.resetBlurBtn.addEventListener('click', () => this._resetBlurState());
+        this.dom.blurCanvas.addEventListener('mousedown', (e) => this._startBrush(e));
+        this.dom.blurCanvas.addEventListener('mousemove', (e) => this._drawBrush(e));
+        this.dom.blurCanvas.addEventListener('mouseup', () => this._stopBrush());
+        this.dom.blurCanvas.addEventListener('mouseleave', () => this._stopBrush());
     }
 
     _centerImageInFrame() {
@@ -215,9 +276,27 @@ export class ImageEditor {
     
     _updateImageEditorPreview() {
         if (!this.state) return;
-        const { zoom, pan } = this.state;
-        this.dom.previewImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
-        this.dom.previewImg.style.filter = this._getFilterString();
+        const { zoom, pan, blurredImageUrl, isBlurred, swappedImageUrl, imageUrl, frameOffset, image } = this.state;
+    
+        let activeImageUrl = isBlurred ? blurredImageUrl : (swappedImageUrl || imageUrl);
+        if (this.dom.previewImg.src !== activeImageUrl) {
+            this.dom.previewImg.src = activeImageUrl;
+        }
+    
+        if (isBlurred) {
+            // The blurred image is already cropped to the frame size.
+            // Position it at the frame's offset with no extra pan/zoom.
+            this.dom.previewImg.style.transform = `translate(${frameOffset.left}px, ${frameOffset.top}px) scale(1)`;
+            this.dom.previewImg.style.width = `${this.dom.previewFrame.offsetWidth}px`;
+            this.dom.previewImg.style.height = `${this.dom.previewFrame.offsetHeight}px`;
+            this.dom.previewImg.style.filter = '';
+        } else {
+            // Restore original state for panning/zooming the full image
+            this.dom.previewImg.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+            this.dom.previewImg.style.width = `${image.naturalWidth}px`;
+            this.dom.previewImg.style.height = `${image.naturalHeight}px`;
+            this.dom.previewImg.style.filter = this._getFilterString();
+        }
     }
     
     _clampImagePan() {
@@ -246,15 +325,24 @@ export class ImageEditor {
         pan.y = Math.max(minY, Math.min(maxY, pan.y));
     }
 
-    _handleConfirm() {
+    async _handleConfirm() {
         if (!this.state) return;
-        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap } = this.state;
+        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints } = this.state;
+    
+        let finalCanvas = document.createElement('canvas');
+        finalCanvas.width = targetElement.width;
+        finalCanvas.height = targetElement.height;
+        const ctx = finalCanvas.getContext('2d');
+        
+        let sourceForProcessing = new Image();
+        sourceForProcessing.src = this.state.imageUrl;
+        await new Promise(resolve => sourceForProcessing.onload = resolve);
         
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = image.naturalWidth;
-        tempCanvas.height = image.naturalHeight;
+        tempCanvas.width = sourceForProcessing.naturalWidth;
+        tempCanvas.height = sourceForProcessing.naturalHeight;
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(image, 0, 0);
+        tempCtx.drawImage(sourceForProcessing, 0, 0);
 
         if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
             const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
@@ -262,28 +350,56 @@ export class ImageEditor {
             tempCtx.putImageData(imageData, 0, 0);
         }
         
-        const finalCanvas = document.createElement('canvas');
-        finalCanvas.width = targetElement.width;
-        finalCanvas.height = targetElement.height;
-        const ctx = finalCanvas.getContext('2d');
-        ctx.filter = this._getFilterString();
-        
         const sX = (frameOffset.left - pan.x) / zoom;
         const sY = (frameOffset.top - pan.y) / zoom;
         const sW = this.dom.previewFrame.offsetWidth / zoom;
         const sH = this.dom.previewFrame.offsetHeight / zoom;
+    
+        if (isBlurred) {
+            // Create sharp and blurred versions of the cropped image
+            const sharpCanvas = document.createElement('canvas');
+            sharpCanvas.width = finalCanvas.width;
+            sharpCanvas.height = finalCanvas.height;
+            const sharpCtx = sharpCanvas.getContext('2d');
+            sharpCtx.filter = this._getFilterString();
+            sharpCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, sharpCanvas.width, sharpCanvas.height);
 
-        ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
+            const blurredCanvas = document.createElement('canvas');
+            blurredCanvas.width = finalCanvas.width;
+            blurredCanvas.height = finalCanvas.height;
+            const blurredCtx = blurredCanvas.getContext('2d');
+            blurredCtx.filter = `blur(4px) ${this._getFilterString()}`;
+            blurredCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, blurredCanvas.width, blurredCanvas.height);
+
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = finalCanvas.width;
+            maskCanvas.height = finalCanvas.height;
+            const maskCtx = maskCanvas.getContext('2d');
+            
+            const scale = finalCanvas.width / this.dom.blurCanvas.width;
+            this._renderBrushMask(maskCtx, finalCanvas.width, finalCanvas.height, true, brushMaskPoints, scale);
+            
+            // Start with the blurred background
+            ctx.drawImage(blurredCanvas, 0, 0);
+            
+            // Isolate the sharp part by masking
+            sharpCtx.globalCompositeOperation = 'destination-in';
+            sharpCtx.drawImage(maskCanvas, 0, 0);
+
+            // Draw the sharp part on top of the blurred background
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(sharpCanvas, 0, 0);
+
+        } else {
+            ctx.filter = this._getFilterString();
+            ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
+        }
         
         const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters, colorSwap };
+        const cropData = { zoom, pan, filters, colorSwap, blurData: isBlurred ? { points: brushMaskPoints } : null };
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
         
-        // Nullify preUploadState so close() doesn't revert our changes.
-        if (this.state) {
-            this.state.preUploadState = null;
-        }
-
+        if (this.state) { this.state.preUploadState = null; }
         this.close();
         this.editor.renderSidebar();
     }
@@ -350,5 +466,179 @@ export class ImageEditor {
     _hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+
+    // --- BLUR METHODS ---
+
+    _resetBlurState(fullReset = true) {
+        if (!this.state) return;
+        if(this.state.isBrushing) this._toggleBrushMode(false);
+        this.state.isBlurred = false;
+        this.state.blurredImageUrl = null;
+        this.dom.blurCanvas.getContext('2d').clearRect(0, 0, this.dom.blurCanvas.width, this.dom.blurCanvas.height);
+        if (fullReset) {
+            this.state.brushMaskPoints = [];
+        }
+        this._updateImageEditorPreview();
+    }
+
+    _toggleBrushMode(forceState = null) {
+        if (!this.state) return;
+        const shouldBeBrushing = forceState !== null ? forceState : !this.state.isBrushing;
+        this.state.isBrushing = shouldBeBrushing;
+        this.dom.previewWrapper.classList.toggle('brushing-mode', shouldBeBrushing);
+        this.dom.markSharpAreaBtn.classList.toggle('active-brush-btn', shouldBeBrushing);
+        this.dom.blurCanvas.style.pointerEvents = shouldBeBrushing ? 'auto' : 'none';
+    }
+
+    _startBrush(e) {
+        if (!this.state || !this.state.isBrushing) return;
+        this.isDrawingBrush = true;
+        const { left, top } = this.dom.blurCanvas.getBoundingClientRect();
+        const x = e.clientX - left;
+        const y = e.clientY - top;
+        this.state.brushMaskPoints.push([{ x, y }]);
+        this._renderBrushMask(this.state.blurCtx, this.dom.blurCanvas.width, this.dom.blurCanvas.height);
+    }
+
+    _drawBrush(e) {
+        if (!this.state || !this.isDrawingBrush) return;
+        const { left, top } = this.dom.blurCanvas.getBoundingClientRect();
+        const currentPath = this.state.brushMaskPoints[this.state.brushMaskPoints.length - 1];
+        currentPath.push({ x: e.clientX - left, y: e.clientY - top });
+        this._renderBrushMask(this.state.blurCtx, this.dom.blurCanvas.width, this.dom.blurCanvas.height);
+    }
+    
+    _stopBrush() {
+        this.isDrawingBrush = false;
+    }
+
+    _renderBrushMask(ctx, width, height, isFinal = false, points = null, scale = 1) {
+        const brushPoints = points || this.state.brushMaskPoints;
+    
+        if (this.offscreenBrushCanvas.width !== width || this.offscreenBrushCanvas.height !== height) {
+            this.offscreenBrushCanvas.width = width;
+            this.offscreenBrushCanvas.height = height;
+        }
+        const offCtx = this.offscreenBrushCanvas.getContext('2d');
+        offCtx.clearRect(0, 0, width, height);
+    
+        const finalScale = isFinal ? scale : 1;
+    
+        offCtx.fillStyle = isFinal ? '#fff' : 'purple';
+        offCtx.strokeStyle = isFinal ? '#fff' : 'purple';
+        offCtx.lineWidth = 20 * finalScale;
+        offCtx.lineCap = 'round';
+        offCtx.lineJoin = 'round';
+    
+        if (brushPoints.length > 0) {
+            brushPoints.forEach(path => {
+                if (path.length === 0) return;
+    
+                offCtx.beginPath();
+                const firstPoint = path[0];
+                offCtx.moveTo(firstPoint.x * finalScale, firstPoint.y * finalScale);
+    
+                path.forEach(point => {
+                    offCtx.lineTo(point.x * finalScale, point.y * finalScale);
+                });
+    
+                if (path.length === 1) {
+                    offCtx.arc(firstPoint.x * finalScale, firstPoint.y * finalScale, offCtx.lineWidth / 2, 0, Math.PI * 2);
+                    offCtx.fill();
+                } else {
+                    offCtx.stroke();
+                }
+            });
+        }
+    
+        ctx.clearRect(0, 0, width, height);
+        if (isFinal) {
+            ctx.drawImage(this.offscreenBrushCanvas, 0, 0);
+        } else if (brushPoints.length > 0) {
+            ctx.globalAlpha = 0.5;
+            ctx.drawImage(this.offscreenBrushCanvas, 0, 0);
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    async _applyBlur() {
+        if (!this.state || this.state.brushMaskPoints.length === 0) {
+            alert('יש לסמן אזור חד תחילה.');
+            return;
+        }
+    
+        this.dom.applyBlurBtn.disabled = true;
+        this.dom.applyBlurBtn.textContent = 'מעבד...';
+    
+        const { image, zoom, pan, frameOffset, brushMaskPoints, filters, colorSwap } = this.state;
+        const frameW = this.dom.previewFrame.offsetWidth;
+        const frameH = this.dom.previewFrame.offsetHeight;
+    
+        const sourceImage = new Image();
+        sourceImage.src = this.state.imageUrl;
+        await new Promise(resolve => sourceImage.onload = resolve);
+    
+        const processCanvas = document.createElement('canvas');
+        processCanvas.width = sourceImage.naturalWidth;
+        processCanvas.height = sourceImage.naturalHeight;
+        const processCtx = processCanvas.getContext('2d');
+        processCtx.drawImage(sourceImage, 0, 0);
+    
+        if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
+            const imageData = processCtx.getImageData(0, 0, processCanvas.width, processCanvas.height);
+            this._applyColorSwapToImageData(imageData, colorSwap);
+            processCtx.putImageData(imageData, 0, 0);
+        }
+    
+        const sX = (frameOffset.left - pan.x) / zoom;
+        const sY = (frameOffset.top - pan.y) / zoom;
+        const sW = frameW / zoom;
+        const sH = frameH / zoom;
+
+        // Create sharp and blurred versions of the cropped image
+        const sharpCanvas = document.createElement('canvas');
+        sharpCanvas.width = frameW;
+        sharpCanvas.height = frameH;
+        const sharpCtx = sharpCanvas.getContext('2d');
+        sharpCtx.filter = this._getFilterString();
+        sharpCtx.drawImage(processCanvas, sX, sY, sW, sH, 0, 0, frameW, frameH);
+
+        const blurredCanvas = document.createElement('canvas');
+        blurredCanvas.width = frameW;
+        blurredCanvas.height = frameH;
+        const blurredCtx = blurredCanvas.getContext('2d');
+        blurredCtx.filter = `blur(4px) ${this._getFilterString()}`;
+        blurredCtx.drawImage(processCanvas, sX, sY, sW, sH, 0, 0, frameW, frameH);
+
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = frameW;
+        maskCanvas.height = frameH;
+        const maskCtx = maskCanvas.getContext('2d');
+        this._renderBrushMask(maskCtx, frameW, frameH, true, brushMaskPoints);
+        
+        // Start with the blurred background
+        const finalPreviewCanvas = document.createElement('canvas');
+        finalPreviewCanvas.width = frameW;
+        finalPreviewCanvas.height = frameH;
+        const finalPreviewCtx = finalPreviewCanvas.getContext('2d');
+        finalPreviewCtx.drawImage(blurredCanvas, 0, 0);
+        
+        // Isolate the sharp part by masking
+        sharpCtx.globalCompositeOperation = 'destination-in';
+        sharpCtx.drawImage(maskCanvas, 0, 0);
+
+        // Draw the sharp part on top of the blurred background
+        finalPreviewCtx.globalCompositeOperation = 'source-over';
+        finalPreviewCtx.drawImage(sharpCanvas, 0, 0);
+    
+        const dataUrl = finalPreviewCanvas.toDataURL('image/png');
+        this.state.isBlurred = true;
+        this.state.blurredImageUrl = dataUrl;
+        this._toggleBrushMode(false);
+        this._updateImageEditorPreview();
+    
+        this.dom.applyBlurBtn.disabled = false;
+        this.dom.applyBlurBtn.textContent = 'בצע טשטוש';
     }
 }
