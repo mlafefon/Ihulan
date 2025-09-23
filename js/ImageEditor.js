@@ -384,6 +384,7 @@ export class ImageEditor {
         this.state.isBlurred = false;
         this.state.blurredImageUrl = null;
         this.dom.blurCanvas.getContext('2d').clearRect(0, 0, this.dom.blurCanvas.width, this.dom.blurCanvas.height);
+        this.dom.applyBlurBtn.classList.remove('active-action-btn');
         if (fullReset) {
             this.state.brushMaskPoints = [];
             this.state.brushSize = 20;
@@ -440,6 +441,7 @@ export class ImageEditor {
         const y = e.clientY - top;
         this.state.brushMaskPoints.push({ mode: this.state.brushMode, brushSize: this.state.brushSize, path: [{ x, y }] });
         this._renderBrushMask(this.state.blurCtx, this.dom.blurCanvas.width, this.dom.blurCanvas.height);
+        this.dom.applyBlurBtn.classList.add('active-action-btn');
     }
 
     _drawBrush(e) {
@@ -504,7 +506,12 @@ export class ImageEditor {
 
     async _applyBlur() {
         if (!this.state || this.state.brushMaskPoints.length === 0) { alert('יש לסמן אזור חד תחילה.'); return; }
-        this.dom.applyBlurBtn.disabled = true; this.dom.applyBlurBtn.textContent = 'מעבד...';
+        
+        const originalBtnHTML = this.dom.applyBlurBtn.innerHTML;
+        this.dom.applyBlurBtn.disabled = true;
+        this.dom.applyBlurBtn.innerHTML = `<svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+        this.dom.applyBlurBtn.classList.remove('active-action-btn');
+
         const { image, zoom, pan, frameOffset, brushMaskPoints, filters, colorSwap } = this.state;
         const frameW = this.dom.previewFrame.offsetWidth; const frameH = this.dom.previewFrame.offsetHeight;
         const sourceImage = new Image(); sourceImage.src = this.state.imageUrl; await new Promise(resolve => sourceImage.onload = resolve);
@@ -517,7 +524,13 @@ export class ImageEditor {
         const finalPreviewCanvas = document.createElement('canvas'); finalPreviewCanvas.width = frameW; finalPreviewCanvas.height = frameH; const finalPreviewCtx = finalPreviewCanvas.getContext('2d');
         finalPreviewCtx.drawImage(blurredCanvas, 0, 0); sharpCtx.globalCompositeOperation = 'destination-in'; sharpCtx.drawImage(maskCanvas, 0, 0); finalPreviewCtx.globalCompositeOperation = 'source-over'; finalPreviewCtx.drawImage(sharpCanvas, 0, 0);
         const dataUrl = finalPreviewCanvas.toDataURL('image/png');
-        this.state.isBlurred = true; this.state.blurredImageUrl = dataUrl; this._toggleBrushMode(false); this._updateImageEditorPreview();
-        this.dom.applyBlurBtn.disabled = false; this.dom.applyBlurBtn.textContent = 'בצע טשטוש';
+
+        this.state.isBlurred = true;
+        this.state.blurredImageUrl = dataUrl;
+        this._toggleBrushMode(false);
+        this._updateImageEditorPreview();
+
+        this.dom.applyBlurBtn.disabled = false;
+        this.dom.applyBlurBtn.innerHTML = originalBtnHTML;
     }
 }

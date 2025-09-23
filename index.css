@@ -1,3 +1,5 @@
+
+
 *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 html { line-height: 1.5; -webkit-text-size-adjust: 100%; -moz-tab-size: 4; tab-size: 4; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
 body { margin: 0; line-height: inherit; font-family: 'Heebo', sans-serif; }
@@ -684,6 +686,11 @@ button { text-transform: none; background-color: transparent; background-image: 
     animation: pulse-blue 1.5s infinite;
 }
 
+.sidebar-btn-icon.active-action-btn svg {
+  color: #22c55e; /* green-500 */
+  animation: pulse-green-icon 1.5s infinite alternate ease-in-out;
+}
+
 .source-colors-container {
     display: flex;
     flex-wrap: wrap;
@@ -725,6 +732,17 @@ button { text-transform: none; background-color: transparent; background-image: 
     0% { box-shadow: 0 0 8px rgba(56, 189, 248, 0.7); }
     50% { box-shadow: 0 0 16px rgba(56, 189, 248, 1); }
     100% { box-shadow: 0 0 8px rgba(56, 189, 248, 0.7); }
+}
+
+@keyframes pulse-green-icon {
+  from {
+    transform: scale(1);
+    filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.7));
+  }
+  to {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 15px rgba(74, 222, 128, 1));
+  }
 }
 
 @media (min-width: 768px) {
