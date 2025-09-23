@@ -76,12 +76,24 @@ export async function exportImage(button, coverBoundary, state) {
     if (selectedElDOM) selectedElDOM.classList.remove('selected');
 
     try {
-        const canvas = await html2canvas(coverBoundary, {
-            scale: 2, useCORS: true, backgroundColor: state.backgroundColor, logging: false,
-        });
+        const scale = 2;
+        const options = {
+            width: coverBoundary.offsetWidth * scale,
+            height: coverBoundary.offsetHeight * scale,
+            style: {
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                width: `${coverBoundary.offsetWidth}px`,
+                height: `${coverBoundary.offsetHeight}px`
+            },
+            bgcolor: state.backgroundColor,
+            cacheBust: true
+        };
         
+        const dataUrl = await domtoimage.toPng(coverBoundary, options);
+
         const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
+        a.href = dataUrl;
         const fileName = state.templateName.trim().replace(/ /g, '_') || 'magazine-cover';
         a.download = `${fileName}.png`;
         document.body.appendChild(a);
