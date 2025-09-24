@@ -334,14 +334,20 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
     return domEl;
 }
 
-export function renderSidebar(selectedEl, sidebarContent, templateActions) {
+export function renderSidebar(selectedEl, sidebarContent, templateActions, bottomActions) {
     if (selectedEl) {
         sidebarContent.innerHTML = '';
         sidebarContent.appendChild(_createEditorSidebar(selectedEl));
         sidebarContent.classList.remove('hidden');
         templateActions.classList.add('hidden');
+        if (bottomActions) {
+            bottomActions.classList.add('hidden');
+        }
     } else {
         sidebarContent.classList.add('hidden');
         templateActions.classList.remove('hidden');
+        if (bottomActions) {
+            bottomActions.classList.remove('hidden');
+        }
     }
 }

@@ -55,28 +55,32 @@
                     </div>
                 </div>
 
-                <div class="pt-4">
+                <div class="pt-4 space-y-3">
                      <button id="change-template-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700">
                         בחר תבנית
                     </button>
                 </div>
             </div>
 
-            <div class="pt-4 border-t border-slate-700">
-                <div class="flex gap-3">
-                    <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700 flex-1">
+            <div id="bottom-actions" class="pt-4 border-t border-slate-700">
+                 <div class="grid grid-cols-2 gap-3">
+                    <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700">
                         שמור שינויים
                     </button>
-                    <button id="export-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500 flex-1">
-                        שמור כקובץ
-                    </button>
-                    <button id="export-image-btn" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700 flex-1">
+                    <button id="export-image-btn" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">
                         שמור כתמונה
+                    </button>
+                    <button id="import-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
+                        טען תבנית
+                    </button>
+                    <button id="export-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
+                        שמור כקובץ
                     </button>
                 </div>
             </div>
 
              <input id="element-image-upload" type="file" accept="image/*" class="hidden" />
+             <input id="import-template-input" type="file" accept=".json" class="hidden" />
 
         </aside>
 
@@ -266,7 +270,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
     <script type="module" src="index.js"></script>
 </body>
 </html>

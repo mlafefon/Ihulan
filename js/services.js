@@ -98,14 +98,12 @@ export async function exportImage(button, coverBoundary, state) {
             style: {
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
-                width: `${coverBoundary.offsetWidth}px`,
-                height: `${coverBoundary.offsetHeight}px`
             },
-            bgcolor: state.backgroundColor,
+            backgroundColor: state.backgroundColor,
             cacheBust: true
         };
         
-        const dataUrl = await domtoimage.toPng(coverBoundary, options);
+        const dataUrl = await htmlToImage.toPng(coverBoundary, options);
 
         const a = document.createElement('a');
         a.href = dataUrl;

@@ -1,6 +1,4 @@
 
-
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -46,6 +44,8 @@ class MagazineEditor {
             templateActions: document.getElementById('template-actions'),
             elementImageUploadInput: document.getElementById('element-image-upload'),
             changeTemplateBtn: document.getElementById('change-template-btn'),
+            importTemplateBtn: document.getElementById('import-template-btn'),
+            importTemplateInput: document.getElementById('import-template-input'),
             templateModal: document.getElementById('template-modal'),
             modalCloseBtn: document.getElementById('modal-close-btn'),
             templateGrid: document.getElementById('template-grid'),
@@ -56,6 +56,7 @@ class MagazineEditor {
             saveTemplateBtn: document.getElementById('save-template-btn'),
             exportTemplateBtn: document.getElementById('export-template-btn'),
             exportImageBtn: document.getElementById('export-image-btn'),
+            bottomActions: document.getElementById('bottom-actions'),
         };
     }
 
@@ -79,6 +80,8 @@ class MagazineEditor {
     _bindEvents() {
         this.dom.elementImageUploadInput.addEventListener('change', this._handleElementImageUpload.bind(this));
         this.dom.changeTemplateBtn.addEventListener('click', this._openTemplateModal.bind(this));
+        this.dom.importTemplateBtn.addEventListener('click', () => this.dom.importTemplateInput.click());
+        this.dom.importTemplateInput.addEventListener('change', this._handleTemplateImport.bind(this));
         this.dom.modalCloseBtn.addEventListener('click', this._closeTemplateModal.bind(this));
         this.dom.templateModalOverlay.addEventListener('click', this._closeTemplateModal.bind(this));
         this.dom.templateGrid.addEventListener('click', this._handleTemplateSelection.bind(this));
@@ -245,23 +248,7 @@ class MagazineEditor {
         }
 
         // Deep copy and apply defaults
-        const elementsWithDefaults = JSON.parse(JSON.stringify(template.elements)).map(el => {
-            if (el.type === 'text') {
-                el.shape = el.shape || 'rectangle';
-                el.textAlign = el.textAlign || 'center';
-                el.multiLine = el.multiLine || false;
-                el.letterSpacing = el.letterSpacing || 0;
-                el.lineHeight = el.lineHeight || 1.2;
-                el.bgColorOpacity = el.bgColorOpacity ?? 1;
-            }
-            if (el.type === 'image') {
-                // Ensure cropData exists with a filters object for backward compatibility
-                if (el.cropData && typeof el.cropData.filters === 'undefined') {
-                    el.cropData.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
-                }
-            }
-            return el;
-        });
+        const elementsWithDefaults = this._applyDefaultElementProperties(template.elements);
         
         this.state = {
             ...this.state,
@@ -280,6 +267,100 @@ class MagazineEditor {
         this._updateCoverDimensions();
         
         this._setDirty(false);
+        this.render();
+    }
+
+    _handleTemplateImport(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) {
+            e.target.value = null; return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const content = event.target.result;
+                const templateData = JSON.parse(content);
+
+                if (this._isValidTemplate(templateData)) {
+                    this._loadTemplateFromFileData(templateData);
+                    // Immediately save the template so it appears in the list
+                    saveTemplate(this.state, this.templates, async () => {
+                        this._setDirty(false);
+                        await this._loadAllTemplates();
+                    });
+                } else {
+                    alert('קובץ התבנית אינו תקין או שאינו מכיל את כל המאפיינים הנדרשים.');
+                }
+            } catch (error) {
+                alert('שגיאה בניתוח קובץ ה-JSON. יש לוודא שהקובץ תקין.');
+                console.error("JSON Parse Error:", error);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = null; // Reset for next import
+    }
+
+    _isValidTemplate(data) {
+        if (!data || typeof data !== 'object') return false;
+        const hasName = typeof data.name === 'string';
+        const hasElements = Array.isArray(data.elements);
+        const hasWidth = typeof data.width === 'number';
+        const hasHeight = typeof data.height === 'number';
+        const hasBgColor = typeof data.backgroundColor === 'string';
+
+        if (!(hasName && hasElements && hasWidth && hasHeight && hasBgColor)) {
+            return false;
+        }
+        // Optional: Check if at least one element has a valid structure
+        if (data.elements.length > 0) {
+            const firstEl = data.elements[0];
+            return typeof firstEl.id === 'string' && typeof firstEl.type === 'string' && typeof firstEl.position === 'object';
+        }
+        
+        return true; // Valid even with no elements
+    }
+    
+    _applyDefaultElementProperties(elements) {
+        // Ensure a deep copy is made
+        return JSON.parse(JSON.stringify(elements)).map(el => {
+            if (el.type === 'text') {
+                el.shape = el.shape || 'rectangle';
+                el.textAlign = el.textAlign || 'center';
+                el.multiLine = el.multiLine || false;
+                el.letterSpacing = el.letterSpacing || 0;
+                el.lineHeight = el.lineHeight || 1.2;
+                el.bgColorOpacity = el.bgColorOpacity ?? 1;
+            }
+            if (el.type === 'image') {
+                if (el.cropData && typeof el.cropData.filters === 'undefined') {
+                    el.cropData.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
+                }
+            }
+            return el;
+        });
+    }
+
+    _loadTemplateFromFileData(templateData) {
+        const elementsWithDefaults = this._applyDefaultElementProperties(templateData.elements);
+        
+        this.state = {
+            ...this.state,
+            templateIndex: null, // Not from the pre-loaded list
+            elements: elementsWithDefaults,
+            backgroundColor: templateData.backgroundColor,
+            selectedElementId: null,
+            templateName: templateData.name,
+            coverWidth: templateData.width || 700,
+            coverHeight: templateData.height || 906,
+        };
+        this.dom.templateNameInput.value = templateData.name;
+        this.dom.templateWidthInput.value = this.state.coverWidth;
+        this.dom.templateHeightInput.value = this.state.coverHeight;
+
+        this._updateCoverDimensions();
+        
+        this._setDirty(true); // Mark as dirty since it's a new, unsaved state
         this.render();
     }
     
@@ -333,7 +414,7 @@ class MagazineEditor {
 
     renderSidebar() {
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
-        renderSidebar(selectedEl, this.dom.sidebarContent, this.dom.templateActions);
+        renderSidebar(selectedEl, this.dom.sidebarContent, this.dom.templateActions, this.dom.bottomActions);
     }
         
     // --- Event Handlers ---
