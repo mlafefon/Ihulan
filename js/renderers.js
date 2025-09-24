@@ -1,5 +1,7 @@
 // --- Sidebar Control Builders (Private helpers) ---
 
+import { FONTS } from './fonts.js';
+
 const _hexToRgba = (hex, alpha) => {
     if (!hex || hex === 'transparent') return 'transparent';
     // Handle named colors by creating a temp element
@@ -100,7 +102,7 @@ const _createSidebarHeader = (title) => {
 
 const _createTextEditorControls = (el) => {
     const container = document.createElement('div');
-    const FONT_FAMILIES = ['Anton', 'Heebo', 'Rubik', 'Assistant', 'David Libre', 'Frank Ruhl Libre'];
+    const fontOptions = FONTS.map(font => `<option value="${font.family}" ${font.family === el.fontFamily ? 'selected' : ''}>${font.name}</option>`).join('');
     const shapeOptions = [
         { value: 'rectangle', text: 'מלבן' },
         { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
@@ -109,7 +111,12 @@ const _createTextEditorControls = (el) => {
     ];
     container.innerHTML = `
         <div class="flex gap-2 mb-3 items-end">
-            <div class="flex-grow">${_createSidebarSelect('fontFamily', 'שם גופן', el.fontFamily, FONT_FAMILIES)}</div>
+            <div class="flex-grow">
+                <label class="block text-sm font-medium text-slate-300 mb-1">שם גופן</label>
+                <select data-property="fontFamily" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                    ${fontOptions}
+                </select>
+            </div>
             <div class="w-24">${_createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}</div>
         </div>
         <div class="flex gap-2 mb-3">
@@ -277,8 +284,9 @@ const _applyTextStyles = (domEl, el, scale) => {
     const textWrapper = document.createElement('div');
     textWrapper.dataset.role = 'text-content';
     textWrapper.innerText = el.multiLine ? el.text : el.text.replace(/(\r\n|\n|\r)/gm, " ");
-    const FONT_CLASS_MAP = { 'Anton': 'font-anton', 'Heebo': 'font-heebo', 'Rubik': 'font-rubik', 'Assistant': 'font-assistant', 'David Libre': 'font-david-libre', 'Frank Ruhl Libre': 'font-frank-ruhl-libre' };
-    textWrapper.className = FONT_CLASS_MAP[el.fontFamily] || 'font-heebo';
+    const font = FONTS.find(f => f.family === el.fontFamily);
+    const fontClassName = font ? font.className : 'font-heebo';
+    textWrapper.className = fontClassName;
     const baseStyles = { color: el.color, fontSize: `${el.fontSize * scale}px`, fontWeight: el.fontWeight, textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', textAlign: el.textAlign || 'center', width: '100%', height: '100%', letterSpacing: `${el.letterSpacing || 0}px`, lineHeight: el.lineHeight || 1.2 };
     if (el.multiLine) {
         Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'pre-wrap', overflow: 'hidden', wordBreak: 'break-word' });

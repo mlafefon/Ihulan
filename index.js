@@ -1,8 +1,10 @@
 
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
+import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
 
 
 /**
@@ -60,6 +62,8 @@ class MagazineEditor {
     async _init() {
         this._cacheDom();
         this.imageEditor = new ImageEditor(this);
+        loadGoogleFonts();
+        injectFontStyles();
         
         this._bindEvents();
         await this._loadAllTemplates();
