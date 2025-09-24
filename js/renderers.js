@@ -349,6 +349,7 @@ const _applyImageStyles = (domEl, el) => {
     Object.assign(domEl.style, { display: 'flex', justifyContent: 'center', alignItems: 'center' });
     if (el.src) {
         const img = document.createElement('img');
+        img.crossOrigin = "anonymous";
         img.src = el.src;
         img.className = 'w-full h-full object-cover pointer-events-none';
         domEl.appendChild(img);

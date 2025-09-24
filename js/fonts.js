@@ -9,11 +9,12 @@ export const FONTS = [
     { name: 'David Libre', family: 'David Libre', weights: [400, 700], className: 'font-david-libre', fallback: 'serif' },
     { name: 'Frank Ruhl Libre', family: 'Frank Ruhl Libre', weights: [400, 700, 900], className: 'font-frank-ruhl-libre', fallback: 'serif' },
     { name: 'Playpen Sans', family: 'Playpen Sans Hebrew', weights: [400, 800], className: 'font-playpen', fallback: 'cursive' },
-    { name: 'Rubik Wet Paint', family: 'Rubik Wet Paint', weights: [400], className: 'font-Rubik-Wet-Paint', fallback: 'system-ui' },
+    { name: 'Rubik Wet Paint', family: 'Rubik Wet Paint', weights: [400], className: 'font-Rubik-Wet-Paint', fallback: 'system-ui' }
+    
 ];
 
-// Dynamically creates and appends the Google Fonts <link> tag to the <head>.
-export function loadGoogleFonts() {
+// Constructs the Google Fonts URL.
+export function getGoogleFontsUrl() {
     const baseUrl = 'https://fonts.googleapis.com/css2?';
     const families = FONTS.map(font => {
         const family = font.family.replace(/ /g, '+');
@@ -21,7 +22,12 @@ export function loadGoogleFonts() {
         return `family=${family}${weights}`;
     }).join('&');
 
-    const finalUrl = `${baseUrl}${families}&display=swap`;
+    return `${baseUrl}${families}&display=swap`;
+}
+
+// Dynamically creates and appends the Google Fonts <link> tag to the <head>.
+export function loadGoogleFonts() {
+    const finalUrl = getGoogleFontsUrl();
     
     const preconnectLink1 = document.createElement('link');
     preconnectLink1.rel = 'preconnect';

@@ -1,3 +1,5 @@
+import { getGoogleFontsUrl } from './fonts.js';
+
 export async function loadAllTemplates() {
     try {
         const manifestResponse = await fetch('templates/manifest.json');
@@ -76,6 +78,48 @@ export function exportTemplate(state) {
     URL.revokeObjectURL(url);
 }
 
+// Helper to fetch and Base64-encode a resource. This is crucial for embedding fonts.
+async function resourceToDataURL(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch resource: ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error(`Error converting URL to Data URL: ${url}`, error);
+        return url; // Fallback to original URL on error
+    }
+}
+
+// Helper to find all font URLs in a CSS file and replace them with embedded Base64 data.
+async function embedFontsInCss(cssText) {
+    // Regex to find font URLs, handling optional quotes.
+    const fontUrlRegex = /url\((['"]?)(https:\/\/fonts\.gstatic\.com\/[^'"]+)\1\)/g;
+    
+    const urlMatches = [...cssText.matchAll(fontUrlRegex)];
+    if (urlMatches.length === 0) return cssText;
+
+    const urlsToFetch = urlMatches.map(match => match[2]);
+    
+    const dataURLs = await Promise.all(urlsToFetch.map(url => resourceToDataURL(url)));
+    
+    let embeddedCss = cssText;
+    urlMatches.forEach((match, index) => {
+        // Replace the full `url(...)` with the new data URL version
+        embeddedCss = embeddedCss.replace(match[0], `url(${dataURLs[index]})`);
+    });
+
+    return embeddedCss;
+}
+
+
 export async function exportImage(button, coverBoundary, state) {
     const originalButtonHTML = button.innerHTML;
     button.innerHTML = `
@@ -91,19 +135,20 @@ export async function exportImage(button, coverBoundary, state) {
     if (selectedElDOM) selectedElDOM.classList.remove('selected');
 
     try {
-        const scale = 2;
+        const originalFontCSS = await fetch(getGoogleFontsUrl()).then(res => res.text());
+        const embeddedFontCSS = await embedFontsInCss(originalFontCSS);
+        
         const options = {
-            width: coverBoundary.offsetWidth * scale,
-            height: coverBoundary.offsetHeight * scale,
-            style: {
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-            },
+            // Use pixelRatio for better resolution, which is often more stable than manual scaling.
+            pixelRatio: 2,
             backgroundColor: state.backgroundColor,
-            cacheBust: true
+            cacheBust: true,
+            fontEmbedCSS: embeddedFontCSS,
         };
         
-        const dataUrl = await htmlToImage.toPng(coverBoundary, options);
+        // Generate a canvas element first, which can be more robust than direct PNG generation.
+        const canvas = await htmlToImage.toCanvas(coverBoundary, options);
+        const dataUrl = canvas.toDataURL('image/png', 1.0);
 
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -115,7 +160,7 @@ export async function exportImage(button, coverBoundary, state) {
 
     } catch (error) {
         console.error('Error exporting image:', error);
-        alert('שגיאה בשמירת התמונה.');
+        alert('שגיאה בשמירת התמונה. ייתכן שיש בעיית רשת בטעינת הגופנים. נסה שוב.');
     } finally {
         if (selectedElDOM) selectedElDOM.classList.add('selected');
         button.innerHTML = originalButtonHTML;
