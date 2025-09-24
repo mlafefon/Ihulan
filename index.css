@@ -566,19 +566,24 @@ button { text-transform: none; background-color: transparent; background-image: 
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="1" fill="white"/></svg>') 12 12, crosshair;
 }
 #image-preview-img { max-width: none; user-select: none; pointer-events: none; }
-#zoom-slider, #color-tolerance-slider, #brush-size-slider { -webkit-appearance: none; appearance: none; }
-#zoom-slider::-webkit-slider-runnable-track, #color-tolerance-slider::-webkit-slider-runnable-track, #brush-size-slider::-webkit-slider-runnable-track { height: 0.5rem; background: #475569; border-radius: 0.25rem; }
-#zoom-slider::-webkit-slider-thumb, #color-tolerance-slider::-webkit-slider-thumb, #brush-size-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -0.25rem; height: 1rem; width: 1rem; background: #38bdf8; border-radius: 50%; cursor: pointer;}
-#zoom-slider:disabled {
+#zoom-slider, #color-tolerance-slider, #brush-size-slider, #frame-width-slider { -webkit-appearance: none; appearance: none; }
+#zoom-slider::-webkit-slider-runnable-track, #color-tolerance-slider::-webkit-slider-runnable-track, #brush-size-slider::-webkit-slider-runnable-track, #frame-width-slider::-webkit-slider-runnable-track { height: 0.5rem; background: #475569; border-radius: 0.25rem; }
+#zoom-slider::-webkit-slider-thumb, #color-tolerance-slider::-webkit-slider-thumb, #brush-size-slider::-webkit-slider-thumb, #frame-width-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -0.25rem; height: 1rem; width: 1rem; background: #38bdf8; border-radius: 50%; cursor: pointer;}
+
+#zoom-slider:disabled, #frame-width-slider:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
-#zoom-slider:disabled::-webkit-slider-thumb {
+#zoom-slider:disabled::-webkit-slider-thumb, #frame-width-slider:disabled::-webkit-slider-thumb {
     background-color: #64748b;
     cursor: not-allowed;
 }
-#zoom-slider:disabled::-moz-range-thumb {
+#zoom-slider:disabled::-moz-range-thumb, #frame-width-slider:disabled::-moz-range-thumb {
     background-color: #64748b;
+    cursor: not-allowed;
+}
+#frame-color-picker:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
 }
 

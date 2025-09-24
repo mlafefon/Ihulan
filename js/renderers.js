@@ -327,8 +327,18 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
         _applyImageStyles(domEl, el);
         if (el.cropData && el.cropData.frameData) {
             const frame = el.cropData.frameData;
-            if (frame.width > 0) {
-                domEl.style.border = `${frame.width * scale}px ${frame.style} ${frame.color}`;
+            if (frame.width > 0 && frame.style !== 'none') {
+                const frameOverlay = document.createElement('div');
+                Object.assign(frameOverlay.style, {
+                    position: 'absolute',
+                    top: '0',
+                    left: '0',
+                    width: '100%',
+                    height: '100%',
+                    border: `${frame.width * scale}px ${frame.style} ${frame.color}`,
+                    pointerEvents: 'none'
+                });
+                domEl.appendChild(frameOverlay);
             }
         }
     }

@@ -225,7 +225,7 @@
                                <label for="brush-size-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-28 flex-shrink-0">גודל מברשת: <span id="brush-size-value">20</span></label>
                                <input id="brush-size-slider" type="range" min="5" max="50" value="20" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
-                           <div class="grid grid-cols-2 gap-2">
+                           <div class="flex gap-2">
                                 <button id="mark-sharp-area-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="מברשת סימון">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                       <rect x="8" y="4" width="12" height="6" rx="1"></rect>
@@ -273,6 +273,7 @@
                            <div class="flex items-center gap-3">
                                <label for="frame-style-select" class="text-sm font-medium text-slate-300 whitespace-nowrap w-28 flex-shrink-0">סגנון</label>
                                <select id="frame-style-select" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                                   <option value="none">ללא מסגרת</option>
                                    <option value="solid">מלא</option>
                                    <option value="dashed">מקווקו</option>
                                    <option value="dotted">מנוקד</option>

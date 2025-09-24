@@ -75,7 +75,8 @@ export class ImageEditor {
             isBrushing: false, brushMode: 'draw', brushSize: 20,
             blurCtx: null, brushMaskPoints: [],
             blurredImageUrl: null, isBlurred: false,
-            frameData: { width: 0, style: 'solid', color: '#000000' }
+            frameData: { width: 0, style: 'none', color: '#000000' },
+            previewScale: 1
         };
 
         this.state.offscreenCanvas = document.createElement('canvas');
@@ -118,6 +119,7 @@ export class ImageEditor {
         this.dom.previewFrame.style.top = this.dom.blurCanvas.style.top = `${frameTop}px`;
 
         this.state.frameOffset = { left: frameLeft, top: frameTop };
+        this.state.previewScale = finalFrameW / targetElement.width;
         this.state.blurCtx = this.dom.blurCanvas.getContext('2d');
 
         const zoomFor100Percent = finalFrameW / targetElement.width;
@@ -249,14 +251,26 @@ export class ImageEditor {
         this.state.frameData.style = this.dom.frameStyleSelect.value;
         this.state.frameData.color = this.dom.frameColorPicker.value;
         this.dom.frameWidthValue.textContent = this.state.frameData.width;
+
+        const isNone = this.state.frameData.style === 'none';
+        this.dom.frameWidthSlider.disabled = isNone;
+        this.dom.frameColorPicker.disabled = isNone;
+
+        if (isNone) {
+            this.state.frameData.width = 0;
+            this.dom.frameWidthSlider.value = 0;
+            this.dom.frameWidthValue.textContent = 0;
+        }
+
         this._updateFramePreview();
     }
 
     _updateFramePreview() {
         if (!this.state) return;
         const { width, style, color } = this.state.frameData;
-        if (width > 0) {
-            this.dom.previewFrame.style.border = `${width}px ${style} ${color}`;
+        const scaledWidth = width * this.state.previewScale;
+        if (width > 0 && style !== 'none') {
+            this.dom.previewFrame.style.border = `${scaledWidth}px ${style} ${color}`;
         } else {
             this.dom.previewFrame.style.border = 'none';
         }
@@ -269,6 +283,9 @@ export class ImageEditor {
         this.dom.frameWidthValue.textContent = width;
         this.dom.frameStyleSelect.value = style;
         this.dom.frameColorPicker.value = color;
+        const isNone = style === 'none';
+        this.dom.frameWidthSlider.disabled = isNone;
+        this.dom.frameColorPicker.disabled = isNone;
     }
 
     _centerImageInFrame() {
@@ -377,7 +394,7 @@ export class ImageEditor {
             ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
         }
         
-        if (frameData && frameData.width > 0) {
+        if (frameData && frameData.width > 0 && frameData.style !== 'none') {
             const fw = frameData.width;
             ctx.strokeStyle = frameData.color;
             ctx.lineCap = 'butt';
