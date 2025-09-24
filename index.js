@@ -20,7 +20,6 @@ class MagazineEditor {
             templateIndex: 0,
             elements: [],
             backgroundColor: '',
-            isLoading: false,
             selectedElementId: null,
             inlineEditingElementId: null,
             coverWidth: 700,
@@ -249,6 +248,7 @@ class MagazineEditor {
                 el.multiLine = el.multiLine || false;
                 el.letterSpacing = el.letterSpacing || 0;
                 el.lineHeight = el.lineHeight || 1.2;
+                el.bgColorOpacity = el.bgColorOpacity ?? 1;
             }
             if (el.type === 'image') {
                 // Ensure cropData exists with a filters object for backward compatibility
@@ -402,7 +402,8 @@ class MagazineEditor {
             displaySwatch.style.backgroundColor = color;
             nativePicker.value = color;
         }
-
+        
+        this.renderSidebar(); // Re-render to show/hide opacity slider
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
@@ -420,7 +421,8 @@ class MagazineEditor {
 
         displaySwatch.classList.remove('is-transparent-swatch');
         displaySwatch.style.backgroundColor = color;
-
+        
+        this.renderSidebar(); // Re-render to show/hide opacity slider
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
@@ -437,7 +439,7 @@ class MagazineEditor {
             const prop = target.dataset.property;
             let value;
 
-            if (target.type === 'number') {
+            if (target.type === 'number' || target.type === 'range') {
                 value = parseFloat(target.value) || 0;
             } else {
                 value = target.value;
@@ -861,7 +863,7 @@ class MagazineEditor {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
-            bgColor: 'transparent', rotation: 0, shape: 'rectangle', textAlign: 'center',
+            bgColor: 'transparent', bgColorOpacity: 1, rotation: 0, shape: 'rectangle', textAlign: 'center',
             multiLine: false, width: 300, height: 80,
             letterSpacing: 0, lineHeight: 1.2
         } : type === 'image' ? {

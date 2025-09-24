@@ -5,9 +5,24 @@ export async function loadAllTemplates() {
         
         const manifest = await manifestResponse.json();
         const templatePromises = manifest.templates.map(url =>
-            fetch(`templates/${url}`).then(res => res.ok ? res.json() : Promise.reject(`Failed to load templates/${url}`))
+            fetch(`templates/${url}`)
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`שגיאת HTTP! סטטוס: ${res.status}`);
+                    }
+                    return res.json(); // This can also throw if JSON is invalid
+                })
+                .catch(error => {
+                    console.error(`שגיאה בטעינת תבנית '${url}': ${error.message}. מדלג על תבנית זו.`);
+                    return null; // Return null for failed templates
+                })
         );
-        const defaultTemplates = await Promise.all(templatePromises);
+        
+        // Promise.all will now resolve with an array containing template objects and nulls
+        const results = await Promise.all(templatePromises);
+        
+        // Filter out the nulls (failed templates)
+        const defaultTemplates = results.filter(template => template !== null);
         
         let userTemplates = [];
         try {

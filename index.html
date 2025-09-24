@@ -140,8 +140,8 @@
                         <p class="text-sm text-slate-400">רזולוציית מקור: <span id="source-res"></span></p>
                         <p class="text-sm text-slate-400">רזולוציית יעד: <span id="target-res"></span></p>
                     </div>
-                    <div class="mt-4">
-                        <label for="zoom-slider" class="block text-sm font-medium text-slate-300 mb-1">זום</label>
+                    <div class="mt-4 flex items-center gap-3">
+                        <label for="zoom-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">זום</label>
                         <input id="zoom-slider" type="range" min="1" max="3" step="0.01" value="1" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                     </div>
                     
@@ -152,24 +152,24 @@
                           <span>פילטרים</span>
                         </button>
                         <div id="filter-panel" class="accordion-panel space-y-2">
-                           <div>
-                               <label for="brightness-slider" class="block text-sm font-medium text-slate-300 mb-1">בהירות</label>
+                           <div class="flex items-center gap-3">
+                               <label for="brightness-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-24 flex-shrink-0">בהירות</label>
                                <input id="brightness-slider" data-filter="brightness" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
-                           <div>
-                               <label for="contrast-slider" class="block text-sm font-medium text-slate-300 mb-1">ניגודיות</label>
+                           <div class="flex items-center gap-3">
+                               <label for="contrast-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-24 flex-shrink-0">ניגודיות</label>
                                <input id="contrast-slider" data-filter="contrast" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
-                           <div>
-                               <label for="saturation-slider" class="block text-sm font-medium text-slate-300 mb-1">רוויה</label>
+                           <div class="flex items-center gap-3">
+                               <label for="saturation-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-24 flex-shrink-0">רוויה</label>
                                <input id="saturation-slider" data-filter="saturation" type="range" min="0" max="200" value="100" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
-                           <div>
-                               <label for="grayscale-slider" class="block text-sm font-medium text-slate-300 mb-1">גווני אפור</label>
+                           <div class="flex items-center gap-3">
+                               <label for="grayscale-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-24 flex-shrink-0">גווני אפור</label>
                                <input id="grayscale-slider" data-filter="grayscale" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
-                           <div>
-                               <label for="sepia-slider" class="block text-sm font-medium text-slate-300 mb-1">ספיה</label>
+                           <div class="flex items-center gap-3">
+                               <label for="sepia-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-24 flex-shrink-0">ספיה</label>
                                <input id="sepia-slider" data-filter="sepia" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
                            <button id="reset-filters-btn" class="w-full mt-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס פילטרים</button>
@@ -204,8 +204,8 @@
                                    <input type="color" id="target-color-picker" value="#ff0000" class="native-color-picker">
                                </div>
                            </div>
-                           <div>
-                               <label for="color-tolerance-slider" class="block text-sm font-medium text-slate-300 mb-1">רגישות: <span id="tolerance-value">20</span></label>
+                           <div class="flex items-center gap-3">
+                               <label for="color-tolerance-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-28 flex-shrink-0">רגישות: <span id="tolerance-value">20</span></label>
                                <input id="color-tolerance-slider" type="range" min="0" max="150" value="20" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
                             <button id="reset-color-swap-btn" class="w-full mt-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">איפוס החלפת צבע</button>
@@ -219,8 +219,8 @@
                         </button>
                         <div id="blur-panel" class="accordion-panel space-y-4">
                            <p class="text-sm text-slate-400">סמן את האזור שיישאר חד. כל השאר יטושטש.</p>
-                           <div>
-                               <label for="brush-size-slider" class="block text-sm font-medium text-slate-300 mb-1">גודל מברשת: <span id="brush-size-value">20</span></label>
+                           <div class="flex items-center gap-3">
+                               <label for="brush-size-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap w-28 flex-shrink-0">גודל מברשת: <span id="brush-size-value">20</span></label>
                                <input id="brush-size-slider" type="range" min="5" max="50" value="20" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                            </div>
                            <div class="grid grid-cols-2 gap-2">

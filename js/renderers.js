@@ -1,5 +1,37 @@
 // --- Sidebar Control Builders (Private helpers) ---
 
+const _hexToRgba = (hex, alpha) => {
+    if (!hex || hex === 'transparent') return 'transparent';
+    // Handle named colors by creating a temp element
+    if (!hex.startsWith('#')) {
+        const tempElem = document.createElement('div');
+        tempElem.style.color = hex;
+        document.body.appendChild(tempElem);
+        const rgbColor = window.getComputedStyle(tempElem).color;
+        document.body.removeChild(tempElem);
+        const rgb = rgbColor.match(/\d+/g);
+        if (rgb) {
+            return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+        }
+        return 'transparent'; // fallback
+    }
+    
+    let r = 0, g = 0, b = 0;
+    // 3 digits
+    if (hex.length === 4) {
+        r = "0x" + hex[1] + hex[1];
+        g = "0x" + hex[2] + hex[2];
+        b = "0x" + hex[3] + hex[3];
+    // 6 digits
+    } else if (hex.length === 7) {
+        r = "0x" + hex[1] + hex[2];
+        g = "0x" + hex[3] + hex[4];
+        b = "0x" + hex[5] + hex[6];
+    }
+    return `rgba(${+r},${+g},${+b},${alpha})`;
+};
+
+
 const _createSidebarInput = (type, prop, label, value, attrs = {}) => `
     <div>
         <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
@@ -88,6 +120,12 @@ const _createTextEditorControls = (el) => {
             ${_createColorPicker('color', 'צבע גופן', el.color)}
             ${_createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
         </div>
+        ${el.bgColor && el.bgColor !== 'transparent' ? `
+        <div class="flex items-center gap-3 mb-3">
+            <label for="bg-opacity-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">שקיפות רקע</label>
+            <input type="range" id="bg-opacity-slider" data-property="bgColorOpacity" min="0" max="1" step="0.01" value="${el.bgColorOpacity ?? 1}" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+        </div>
+        ` : ''}
         <div class="flex gap-2 mb-3">
             <div class="flex-1">
                 <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
@@ -227,7 +265,9 @@ const _createTransformHandles = () => {
 
 const _applyTextStyles = (domEl, el, scale) => {
     const backgroundElement = document.createElement('div');
-    Object.assign(backgroundElement.style, { width: '100%', height: '100%', backgroundColor: el.bgColor, padding: el.padding || '0px' });
+    const bgColorWithOpacity = _hexToRgba(el.bgColor, el.bgColorOpacity ?? 1);
+    Object.assign(backgroundElement.style, { width: '100%', height: '100%', backgroundColor: bgColorWithOpacity, padding: el.padding || '0px' });
+    
     switch (el.shape) {
         case 'rounded-rectangle': backgroundElement.style.borderRadius = '25px'; break;
         case 'ellipse': backgroundElement.style.borderRadius = '50%'; break;
