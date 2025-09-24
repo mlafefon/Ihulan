@@ -322,7 +322,16 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
     });
     if (el.id === state.selectedElementId && scale === 1) domEl.classList.add('selected');
     if (el.type === 'text') _applyTextStyles(domEl, el, scale);
-    else if (el.type === 'image') { domEl.classList.add('element-type-image'); _applyImageStyles(domEl, el); }
+    else if (el.type === 'image') {
+        domEl.classList.add('element-type-image'); 
+        _applyImageStyles(domEl, el);
+        if (el.cropData && el.cropData.frameData) {
+            const frame = el.cropData.frameData;
+            if (frame.width > 0) {
+                domEl.style.border = `${frame.width * scale}px ${frame.style} ${frame.color}`;
+            }
+        }
+    }
     else if (el.type === 'clipping-shape') {
         domEl.classList.add('clipping-shape');
         const instructionText = document.createElement('div');

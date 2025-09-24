@@ -42,6 +42,12 @@ export class ImageEditor {
             brushSizeValue: document.getElementById('brush-size-value'),
             applyBlurBtn: document.getElementById('apply-blur-btn'),
             resetBlurBtn: document.getElementById('reset-blur-btn'),
+            // Frame elements
+            framePanel: document.getElementById('frame-panel'),
+            frameWidthSlider: document.getElementById('frame-width-slider'),
+            frameWidthValue: document.getElementById('frame-width-value'),
+            frameStyleSelect: document.getElementById('frame-style-select'),
+            frameColorPicker: document.getElementById('frame-color-picker'),
         };
     }
 
@@ -69,6 +75,7 @@ export class ImageEditor {
             isBrushing: false, brushMode: 'draw', brushSize: 20,
             blurCtx: null, brushMaskPoints: [],
             blurredImageUrl: null, isBlurred: false,
+            frameData: { width: 0, style: 'solid', color: '#000000' }
         };
 
         this.state.offscreenCanvas = document.createElement('canvas');
@@ -146,6 +153,9 @@ export class ImageEditor {
                 }
                 await this._applyBlur();
             }
+            if (targetElement.cropData.frameData) {
+                this.state.frameData = { ...this.state.frameData, ...targetElement.cropData.frameData };
+            }
         } else {
             this.state.zoom = initialZoom;
             this._centerImageInFrame();
@@ -164,6 +174,8 @@ export class ImageEditor {
         this.dom.zoomSlider.value = this.state.zoom;
         this.dom.zoomSlider.step = (maxZoom - minZoom) / 100 || 0.01;
         this._updateFilterSliders();
+        this._updateFrameControls();
+        this._updateFramePreview();
         this._updateImageEditorPreview();
     }
 
@@ -177,6 +189,7 @@ export class ImageEditor {
         this.state = null;
         this.dom.modal.classList.add('hidden');
         this.dom.previewImg.style.filter = '';
+        this.dom.previewFrame.style.border = 'none';
     }
 
     _setupEvents() {
@@ -223,6 +236,39 @@ export class ImageEditor {
         this.dom.blurCanvas.addEventListener('mousemove', (e) => this._drawBrush(e));
         this.dom.blurCanvas.addEventListener('mouseup', () => this._stopBrush());
         this.dom.blurCanvas.addEventListener('mouseleave', () => this._stopBrush());
+
+        // Frame events
+        this.dom.frameWidthSlider.addEventListener('input', () => this._handleFrameChange());
+        this.dom.frameStyleSelect.addEventListener('change', () => this._handleFrameChange());
+        this.dom.frameColorPicker.addEventListener('input', () => this._handleFrameChange());
+    }
+
+    _handleFrameChange() {
+        if (!this.state) return;
+        this.state.frameData.width = parseInt(this.dom.frameWidthSlider.value, 10);
+        this.state.frameData.style = this.dom.frameStyleSelect.value;
+        this.state.frameData.color = this.dom.frameColorPicker.value;
+        this.dom.frameWidthValue.textContent = this.state.frameData.width;
+        this._updateFramePreview();
+    }
+
+    _updateFramePreview() {
+        if (!this.state) return;
+        const { width, style, color } = this.state.frameData;
+        if (width > 0) {
+            this.dom.previewFrame.style.border = `${width}px ${style} ${color}`;
+        } else {
+            this.dom.previewFrame.style.border = 'none';
+        }
+    }
+
+    _updateFrameControls() {
+        if (!this.state) return;
+        const { width, style, color } = this.state.frameData;
+        this.dom.frameWidthSlider.value = width;
+        this.dom.frameWidthValue.textContent = width;
+        this.dom.frameStyleSelect.value = style;
+        this.dom.frameColorPicker.value = color;
     }
 
     _centerImageInFrame() {
@@ -292,7 +338,7 @@ export class ImageEditor {
 
     async _handleConfirm() {
         if (!this.state) return;
-        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints } = this.state;
+        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints, frameData } = this.state;
     
         let finalCanvas = document.createElement('canvas');
         finalCanvas.width = targetElement.width;
@@ -331,8 +377,40 @@ export class ImageEditor {
             ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
         }
         
+        if (frameData && frameData.width > 0) {
+            const fw = frameData.width;
+            ctx.strokeStyle = frameData.color;
+            ctx.lineCap = 'butt';
+            switch (frameData.style) {
+                case 'dashed':
+                    ctx.lineWidth = fw;
+                    ctx.setLineDash([fw * 2, fw]);
+                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                    break;
+                case 'dotted':
+                    ctx.lineWidth = fw;
+                    ctx.lineCap = 'round';
+                    ctx.setLineDash([0, fw * 1.5]);
+                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                    break;
+                case 'double':
+                    ctx.lineWidth = Math.max(1, Math.floor(fw / 3));
+                    const lw = ctx.lineWidth;
+                    ctx.setLineDash([]);
+                    ctx.strokeRect(lw / 2, lw / 2, finalCanvas.width - lw, finalCanvas.height - lw);
+                    ctx.strokeRect(fw - lw / 2, fw - lw / 2, finalCanvas.width - (2 * fw - lw), finalCanvas.height - (2 * fw - lw));
+                    break;
+                case 'solid':
+                default:
+                    ctx.lineWidth = fw;
+                    ctx.setLineDash([]);
+                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                    break;
+            }
+        }
+
         const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters, colorSwap, blurData: isBlurred ? { points: brushMaskPoints } : null };
+        const cropData = { zoom, pan, filters, colorSwap, blurData: isBlurred ? { points: brushMaskPoints } : null, frameData };
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
         if (this.state) { this.state.preUploadState = null; }
         this.close();
