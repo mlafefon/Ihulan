@@ -107,7 +107,7 @@ const _createTextEditorControls = (el) => {
         { value: 'rectangle', text: 'מלבן' },
         { value: 'rounded-rectangle', text: 'מלבן מעוגל' },
         { value: 'ellipse', text: 'אליפסה' },
-        { value: 'star', text: 'כוכב' }
+        { value: 'star', text: 'שמש' }
     ];
     container.innerHTML = `
         <div class="flex gap-2 mb-3 items-end">
@@ -278,7 +278,7 @@ const _applyTextStyles = (domEl, el, scale) => {
     switch (el.shape) {
         case 'rounded-rectangle': backgroundElement.style.borderRadius = '25px'; break;
         case 'ellipse': backgroundElement.style.borderRadius = '50%'; break;
-        case 'star': backgroundElement.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'; break;
+        case 'star': backgroundElement.style.clipPath = 'polygon(50% 0%, 59% 21%, 79% 10%, 74% 32%, 98% 35%, 80% 50%, 98% 65%, 74% 68%, 79% 90%, 59% 79%, 50% 100%, 41% 79%, 21% 90%, 26% 68%, 2% 65%, 20% 50%, 2% 35%, 26% 32%, 21% 10%, 41% 21%)'; break;
         default: backgroundElement.style.borderRadius = '0px'; break;
     }
     const textWrapper = document.createElement('div');
