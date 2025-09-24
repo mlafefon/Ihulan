@@ -282,7 +282,7 @@ button { text-transform: none; background-color: transparent; background-image: 
     stroke: currentColor;
 }
 .accordion-toggle[aria-expanded="true"] .accordion-chevron {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 .accordion-panel {
     padding-left: 0.25rem;

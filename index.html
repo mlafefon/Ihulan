@@ -150,8 +150,8 @@
                     <div id="image-editor-accordion-container" class="mt-4 pt-4 border-t border-slate-700 space-y-1">
                       <div class="accordion-group">
                         <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="filter-panel">
-                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                           <span>פילטרים</span>
+                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
                         <div id="filter-panel" class="accordion-panel space-y-2">
                            <div class="flex items-center gap-3">
@@ -180,8 +180,8 @@
 
                       <div class="accordion-group pt-2 border-t border-slate-700">
                         <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="colorswap-panel">
-                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                           <span>החלפת צבע</span>
+                           <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
                         <div id="colorswap-panel" class="accordion-panel space-y-3">
                            <p class="text-sm text-slate-400">לחץ על כפתור בחירת הצבע, ואז לחץ על צבעים בתמונה כדי להוסיף אותם להחלפה.</p>
@@ -190,7 +190,9 @@
                                    <span class="color-swap-label">צבעי מקור (לחץ להסרה)</span>
                                     <div class="flex items-center gap-2 mt-1">
                                        <button id="pick-color-btn" class="color-swatch-btn flex-shrink-0" title="הוסף צבע מקור">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+                                               <path d="M13.52 5.08C12.42 4.02 10.76 4 9.62 5.08L3.08 11.24C2.39 11.89 2 12.83 2 13.79V19C2 20.1 2.9 21 4 21H9.21C10.17 21 11.11 20.61 11.76 19.92L18.3 13.76C19.36 12.7 19.4 11.04 18.3 10L13.52 5.08Z"></path><path d="M22 5.15L18.85 2C18.66 1.83 18.42 1.72 18.17 1.71C17.65 1.68 17.15 1.88 16.78 2.22L15 3.87L19.5 8.37L21.78 6.09C22.12 5.72 22.32 5.22 22.29 4.7C22.28 4.45 22.17 4.21 22 4.02V4.02C22 4.02 22 5.15 22 5.15Z"></path>
+                                           </svg>
                                        </button>
                                        <div id="source-colors-container" class="source-colors-container">
                                            <!-- Injected by JS -->
@@ -216,8 +218,8 @@
 
                       <div class="accordion-group pt-2 border-t border-slate-700">
                         <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="blur-panel">
-                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                           <span>טשטוש</span>
+                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
                         <div id="blur-panel" class="accordion-panel space-y-4">
                            <p class="text-sm text-slate-400">סמן את האזור שיישאר חד. כל השאר יטושטש.</p>
@@ -262,8 +264,8 @@
                       
                       <div class="accordion-group pt-2 border-t border-slate-700">
                         <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="frame-panel">
-                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                           <span>מסגרת</span>
+                          <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
                         <div id="frame-panel" class="accordion-panel space-y-4">
                            <div class="flex items-center gap-3">

@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -118,10 +119,44 @@ class MagazineEditor {
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
+
+        // Add generic accordion handler for both sidebars
+        [this.dom.sidebar, this.imageEditor.dom.modal].forEach(container => {
+            container.addEventListener('click', e => {
+                const toggleBtn = e.target.closest('.accordion-toggle');
+                if (toggleBtn) this._toggleAccordionPanel(toggleBtn);
+            });
+        });
         
         this.dom.coverBoundary.addEventListener('click', this._handleCoverClick.bind(this));
         this.dom.coverBoundary.addEventListener('mousedown', this._handleCoverMouseDown.bind(this));
         document.addEventListener('click', this._handleGlobalClick.bind(this));
+    }
+
+    _toggleAccordionPanel(toggleBtn) {
+        const panel = document.getElementById(toggleBtn.getAttribute('aria-controls'));
+        if (!panel) return;
+
+        const container = toggleBtn.closest('.space-y-1');
+        const isCurrentlyOpen = panel.classList.contains('open');
+
+        // Close other panels in the same container
+        if (container) {
+            container.querySelectorAll('.accordion-panel.open').forEach(p => {
+                const btn = p.previousElementSibling;
+                if (p !== panel && btn) {
+                    p.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.querySelector('.accordion-chevron')?.classList.remove('rotate-180');
+                }
+            });
+        }
+        
+        // Toggle the current panel
+        const shouldOpen = !isCurrentlyOpen;
+        panel.classList.toggle('open', shouldOpen);
+        toggleBtn.setAttribute('aria-expanded', shouldOpen);
+        toggleBtn.querySelector('.accordion-chevron')?.classList.toggle('rotate-180', shouldOpen);
     }
 
     _handleGlobalClick(e) {

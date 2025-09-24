@@ -60,6 +60,7 @@ export class ImageEditor {
         this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => {
             p.classList.remove('open');
             p.previousElementSibling.setAttribute('aria-expanded', 'false');
+            p.previousElementSibling.querySelector('.accordion-chevron').classList.remove('rotate-180');
         });
         
         this.state = {
@@ -221,8 +222,6 @@ export class ImageEditor {
         this.dom.colorToleranceSlider.addEventListener('input', this._handleToleranceChange);
         this.dom.resetColorSwapBtn.addEventListener('click', this._resetColorSwap);
         this.dom.sourceColorsContainer.addEventListener('click', this._handleRemoveSourceColor);
-        
-        this.dom.accordionContainer.addEventListener('click', e => { const toggleBtn = e.target.closest('.accordion-toggle'); if (toggleBtn) { const panel = document.getElementById(toggleBtn.getAttribute('aria-controls')); if (!panel) return; const isCurrentlyOpen = panel.classList.contains('open'); this.dom.accordionContainer.querySelectorAll('.accordion-panel.open').forEach(p => { if (p !== panel) { p.classList.remove('open'); p.previousElementSibling.setAttribute('aria-expanded', 'false'); } }); if (!isCurrentlyOpen) { panel.classList.add('open'); toggleBtn.setAttribute('aria-expanded', 'true'); } else { panel.classList.remove('open'); toggleBtn.setAttribute('aria-expanded', 'false'); } } });
         
         this.dom.confirmCropBtn.addEventListener('click', () => this._handleConfirm());
         this.dom.imageEditorCloseBtn.addEventListener('click', () => this.close());

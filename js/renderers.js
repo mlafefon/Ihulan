@@ -110,65 +110,101 @@ const _createTextEditorControls = (el) => {
         { value: 'star', text: 'שמש' }
     ];
     container.innerHTML = `
-        <div class="flex gap-2 mb-3 items-end">
-            <div class="flex-grow">
-                <label class="block text-sm font-medium text-slate-300 mb-1">שם גופן</label>
-                <select data-property="fontFamily" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
-                    ${fontOptions}
-                </select>
-            </div>
-            <div class="w-24">${_createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}</div>
-        </div>
-        <div class="flex gap-2 mb-3">
-            <div class="flex-1">${_createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}</div>
-            <div class="flex-1">${_createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}</div>
-        </div>
-        <div class="mb-3 flex gap-2 w-full items-start">
-            ${_createColorPicker('color', 'צבע גופן', el.color)}
-            ${_createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
-        </div>
-        ${el.bgColor && el.bgColor !== 'transparent' ? `
-        <div class="flex items-center gap-3 mb-3">
-            <label for="bg-opacity-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">שקיפות רקע</label>
-            <input type="range" id="bg-opacity-slider" data-property="bgColorOpacity" min="0" max="1" step="0.01" value="${el.bgColorOpacity ?? 1}" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-        </div>
-        ` : ''}
-        <div class="flex gap-2 mb-3">
-            <div class="flex-1">
-                <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
-                <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
-                    ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
-                </select>
-            </div>
-            <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
-        </div>
-        <div class="grid grid-cols-2 gap-2 mb-3">
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-1">יישור</label>
-                <div class="text-align-group">
-                    <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                    <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                    <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
-                    <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+        <div class="space-y-1" id="text-editor-accordion-container">
+            <!-- Font & Size Group -->
+            <div class="accordion-group">
+                <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="font-size-panel">
+                    <span>גופן וגודל</span>
+                    <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="font-size-panel" class="accordion-panel space-y-3">
+                    <div class="flex gap-2 items-end">
+                        <div class="flex-grow">
+                            <label class="block text-sm font-medium text-slate-300 mb-1">שם גופן</label>
+                            <select data-property="fontFamily" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                                ${fontOptions}
+                            </select>
+                        </div>
+                        <div class="w-24">${_createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="flex-1">${_createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}</div>
+                        <div class="flex-1">${_createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}</div>
+                    </div>
                 </div>
             </div>
-             <div>
-                <label class="block text-sm font-medium text-slate-300 mb-1">אפשרויות</label>
-                <div class="toggle-controls-group">
-                    <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
-                            <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" opacity="0.4" transform="translate(1.5, 1.5)"/>
-                            <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z"/>
-                        </svg>
-                    </button>
-                    <button type="button" class="toggle-btn ${el.multiLine ? 'active' : ''}" data-action="toggle-property" data-property="multiLine" title="רב שורה" aria-pressed="${!!el.multiLine}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
+
+            <!-- Color & Style Group -->
+            <div class="accordion-group pt-2 border-t border-slate-700">
+                <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="color-style-panel">
+                    <span>צבע וסגנון</span>
+                    <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="color-style-panel" class="accordion-panel space-y-3">
+                    <div class="flex gap-2 w-full items-start">
+                        ${_createColorPicker('color', 'צבע גופן', el.color)}
+                        ${_createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
+                    </div>
+                    ${el.bgColor && el.bgColor !== 'transparent' ? `
+                    <div class="flex items-center gap-3">
+                        <label for="bg-opacity-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">שקיפות רקע</label>
+                        <input type="range" id="bg-opacity-slider" data-property="bgColorOpacity" min="0" max="1" step="0.01" value="${el.bgColorOpacity ?? 1}" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    </div>` : ''}
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
+                            <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
+                                ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">אפקטים</label>
+                        <div class="toggle-controls-group w-1/2">
+                             <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+                                    <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" opacity="0.4" transform="translate(1.5, 1.5)"/>
+                                    <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>`;
+            
+            <!-- Alignment & Layout Group -->
+            <div class="accordion-group pt-2 border-t border-slate-700">
+                <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="align-layout-panel">
+                    <span>יישור ופריסה</span>
+                    <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="align-layout-panel" class="accordion-panel space-y-3">
+                     <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">יישור טקסט</label>
+                            <div class="text-align-group">
+                                <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                                <button data-action="align-text" data-align="center" class="align-btn ${el.textAlign === 'center' ? 'active' : ''}" title="יישור למרכז"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                                <button data-action="align-text" data-align="left" class="align-btn ${el.textAlign === 'left' ? 'active' : ''}" title="יישור לשמאל"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 10a1 1 0 011-1h8a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h12a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                                <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
+                            </div>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">פריסת טקסט</label>
+                            <div class="toggle-controls-group w-1/2">
+                                <button type="button" class="toggle-btn ${el.multiLine ? 'active' : ''}" data-action="toggle-property" data-property="multiLine" title="רב שורה" aria-pressed="${!!el.multiLine}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     return container;
 }
 
@@ -177,11 +213,22 @@ const _createImageEditorControls = (el) => {
     const buttonText = el.src ? 'ערוך תמונה' : 'הוסף תמונה';
     const buttonAction = el.src ? 'edit-image' : 'add-image';
     container.innerHTML = `
-        <div class="flex gap-4 mb-3">
-            <div class="flex-1">${_createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
-            <div class="flex-1">${_createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
+        <div class="space-y-1">
+            <div class="accordion-group">
+                <button type="button" class="accordion-toggle" aria-expanded="false" aria-controls="dimensions-panel">
+                    <span>מידות</span>
+                    <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="dimensions-panel" class="accordion-panel">
+                     <div class="flex gap-4 pt-2">
+                        <div class="flex-1">${_createSidebarInput('number', 'width', 'רוחב', Math.round(el.width))}</div>
+                        <div class="flex-1">${_createSidebarInput('number', 'height', 'גובה', Math.round(el.height))}</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <button data-action="${buttonAction}" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">${buttonText}</button>`;
+        <button data-action="${buttonAction}" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">${buttonText}</button>
+    `;
     return container;
 }
 
@@ -198,7 +245,7 @@ const _createClippingShapeEditorControls = (el) => {
 
 const _createLayerControls = () => {
     const div = document.createElement('div');
-    div.className = "layer-menu-container mt-4";
+    div.className = "layer-menu-container mt-4 pt-4 border-t border-slate-700";
     div.innerHTML = `
         <button data-action="toggle-layer-menu" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors flex justify-between items-center">
             <span class="flex items-center gap-2"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="h-5 w-5"><rect x="10" y="7" width="10" height="10" rx="1.5" fill="#fb923c"/><rect x="7" y="10" width="10" height="10" rx="1.5" stroke="white" stroke-width="1.5"/></svg><span>סדר</span></span>
@@ -216,7 +263,7 @@ const _createLayerControls = () => {
 const _createDeleteButton = () => {
     const button = document.createElement('button');
     button.dataset.action = "delete";
-    button.className = "w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg";
+    button.className = "w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg";
     button.textContent = "מחק אלמנט";
     return button;
 }
