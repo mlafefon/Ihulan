@@ -72,7 +72,8 @@ export class ImageEditor {
             isPickingColor: false,
             colorSwap: { sources: [], target: '#ff0000', tolerance: 20 },
             originalImageData: null, offscreenCanvas: null, offscreenCtx: null,
-            preUploadState: preUploadState,
+            preUploadState: preUploadState, // State for reverting on cancel (if replacing image)
+            preEditEditorState: this.editor._getStateSnapshot(), // State for undo/redo
             isBrushing: false, brushMode: 'draw', brushSize: 20,
             blurCtx: null, brushMaskPoints: [],
             blurredImageUrl: null, isBlurred: false,
@@ -354,6 +355,7 @@ export class ImageEditor {
 
     async _handleConfirm() {
         if (!this.state) return;
+        this.editor.history.addState(this.state.preEditEditorState);
         const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints, frameData } = this.state;
     
         let finalCanvas = document.createElement('canvas');

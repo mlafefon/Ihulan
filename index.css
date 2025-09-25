@@ -239,6 +239,12 @@ button { text-transform: none; background-color: transparent; background-image: 
     width: 1.5rem;
     height: 1.5rem;
 }
+.sidebar-btn-icon:disabled {
+    background-color: #334155; /* slate-700 */
+    cursor: not-allowed;
+    color: #64748b; /* slate-500 */
+    opacity: 0.5;
+}
 
 .dirty-button {
     outline: 2px solid #dc2626; /* red-600 */

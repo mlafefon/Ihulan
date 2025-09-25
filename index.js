@@ -1,7 +1,4 @@
 
-
-
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -13,8 +10,77 @@ import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
  * Main script for the Magazine Cover Editor.
  *
  * Structure:
- * 1. MagazineEditor: The main application class that orchestrates all modules.
+ * 1. HistoryManager: Handles undo/redo functionality.
+ * 2. MagazineEditor: The main application class that orchestrates all modules.
  */
+
+// --- HISTORY MANAGER CLASS ---
+class HistoryManager {
+    constructor(editor) {
+        this.editor = editor;
+        this.undoStack = [];
+        this.redoStack = [];
+        this.dom = {
+            undoBtn: document.getElementById('undo-btn'),
+            redoBtn: document.getElementById('redo-btn'),
+        };
+    }
+
+    _cloneState(state) {
+        // Deep copy only the necessary parts of the state for history
+        return JSON.parse(JSON.stringify({
+            elements: state.elements,
+            backgroundColor: state.backgroundColor,
+            coverWidth: state.coverWidth,
+            coverHeight: state.coverHeight,
+            templateName: state.templateName,
+        }));
+    }
+
+    addState(state) {
+        this.undoStack.push(this._cloneState(state));
+        this.redoStack = []; // Clear redo stack on new action
+        this.updateButtons();
+    }
+
+    undo() {
+        if (this.canUndo()) {
+            this.redoStack.push(this._cloneState(this.editor.state));
+            const prevState = this.undoStack.pop();
+            this.editor.restoreState(prevState);
+            this.updateButtons();
+        }
+    }
+
+    redo() {
+        if (this.canRedo()) {
+            this.undoStack.push(this._cloneState(this.editor.state));
+            const nextState = this.redoStack.pop();
+            this.editor.restoreState(nextState);
+            this.updateButtons();
+        }
+    }
+
+    clear() {
+        this.undoStack = [];
+        this.redoStack = [];
+        this.updateButtons();
+    }
+
+    canUndo() {
+        return this.undoStack.length > 0;
+    }
+
+    canRedo() {
+        return this.redoStack.length > 0;
+    }
+
+    updateButtons() {
+        this.dom.undoBtn.disabled = !this.canUndo();
+        this.dom.redoBtn.disabled = !this.canRedo();
+    }
+}
+
 
 // --- MAIN CLASS: MagazineEditor ---
 class MagazineEditor {
@@ -34,6 +100,12 @@ class MagazineEditor {
         this.templates = [];
         this.isLayerMenuOpen = false;
         this.snapLines = []; // For snapping guides
+
+        // History management
+        this.historyRecordingSuspended = false;
+        this.preInteractionState = null;
+        this.sidebarInputPristineState = null;
+        
 
         this._init();
     }
@@ -61,11 +133,14 @@ class MagazineEditor {
             exportTemplateBtn: document.getElementById('export-template-btn'),
             exportImageBtn: document.getElementById('export-image-btn'),
             bottomActions: document.getElementById('bottom-actions'),
+            undoBtn: document.getElementById('undo-btn'),
+            redoBtn: document.getElementById('redo-btn'),
         };
     }
 
     async _init() {
         this._cacheDom();
+        this.history = new HistoryManager(this);
         this.imageEditor = new ImageEditor(this);
         loadGoogleFonts();
         injectFontStyles();
@@ -119,6 +194,11 @@ class MagazineEditor {
         this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
         this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
 
+        this.dom.sidebar.addEventListener('focusin', (e) => {
+            if (e.target.matches('input[type="text"], input[type="number"], input[type="range"], select')) {
+                this.sidebarInputPristineState = this._getStateSnapshot();
+            }
+        });
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
@@ -134,6 +214,20 @@ class MagazineEditor {
         this.dom.coverBoundary.addEventListener('click', this._handleCoverClick.bind(this));
         this.dom.coverBoundary.addEventListener('mousedown', this._handleCoverMouseDown.bind(this));
         document.addEventListener('click', this._handleGlobalClick.bind(this));
+        
+        // History events
+        this.dom.undoBtn.addEventListener('click', () => this.history.undo());
+        this.dom.redoBtn.addEventListener('click', () => this.history.redo());
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                this.history.undo();
+            }
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                this.history.redo();
+            }
+        });
     }
 
     _toggleAccordionPanel(toggleBtn) {
@@ -273,12 +367,40 @@ class MagazineEditor {
         this.state.isDirty = isDirty;
         this.dom.saveTemplateBtn.classList.toggle('dirty-button', isDirty);
     }
+
+    _getStateSnapshot() {
+        return JSON.parse(JSON.stringify(this.state));
+    }
+
+    restoreState(newState) {
+        this.historyRecordingSuspended = true;
+        
+        // Restore only the historized properties
+        this.state.elements = newState.elements;
+        this.state.backgroundColor = newState.backgroundColor;
+        this.state.coverWidth = newState.coverWidth;
+        this.state.coverHeight = newState.coverHeight;
+        this.state.templateName = newState.templateName;
+        // Keep current selection if possible, otherwise nullify
+        this.state.selectedElementId = newState.elements.some(el => el.id === this.state.selectedElementId) ? this.state.selectedElementId : null;
+
+        // Update UI elements tied to state
+        this.dom.templateNameInput.value = this.state.templateName;
+        this.dom.templateWidthInput.value = this.state.coverWidth;
+        this.dom.templateHeightInput.value = this.state.coverHeight;
+
+        this._updateCoverDimensions();
+        this.render();
+
+        this.historyRecordingSuspended = false;
+    }
     
     async _loadAllTemplates() {
         this.templates = await loadAllTemplates();
     }
 
     loadTemplate(index) {
+        if (this.historyRecordingSuspended) return;
         const template = this.templates[index];
         if (!template) {
             console.error(`תבנית באינדקס ${index} אינה קיימת.`);
@@ -294,6 +416,7 @@ class MagazineEditor {
             elements: elementsWithDefaults,
             backgroundColor: template.backgroundColor,
             selectedElementId: null,
+            inlineEditingElementId: null,
             templateName: template.name,
             coverWidth: template.width || 700,
             coverHeight: template.height || 906,
@@ -305,6 +428,7 @@ class MagazineEditor {
         this._updateCoverDimensions();
         
         this._setDirty(false);
+        this.history.clear();
         this.render();
     }
 
@@ -381,6 +505,7 @@ class MagazineEditor {
     }
 
     _loadTemplateFromFileData(templateData) {
+        if (this.historyRecordingSuspended) return;
         const elementsWithDefaults = this._applyDefaultElementProperties(templateData.elements);
         
         this.state = {
@@ -389,6 +514,7 @@ class MagazineEditor {
             elements: elementsWithDefaults,
             backgroundColor: templateData.backgroundColor,
             selectedElementId: null,
+            inlineEditingElementId: null,
             templateName: templateData.name,
             coverWidth: templateData.width || 700,
             coverHeight: templateData.height || 906,
@@ -400,6 +526,7 @@ class MagazineEditor {
         this._updateCoverDimensions();
         
         this._setDirty(true); // Mark as dirty since it's a new, unsaved state
+        this.history.clear();
         this.render();
     }
     
@@ -497,6 +624,7 @@ class MagazineEditor {
         if (oldSelectedId) {
             const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
             if (oldElement && oldElement.type === 'clipping-shape') {
+                this.history.addState(this._getStateSnapshot());
                 this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
             }
         }
@@ -511,6 +639,7 @@ class MagazineEditor {
         if (!picker) return;
         const prop = picker.dataset.property;
 
+        this.history.addState(this._getStateSnapshot());
         this.updateSelectedElement({ [prop]: color });
 
         picker.dataset.value = color;
@@ -551,6 +680,7 @@ class MagazineEditor {
         if (!picker) return;
 
         const prop = picker.dataset.property;
+        this.history.addState(this._getStateSnapshot());
         this.updateSelectedElement({ [prop]: color });
 
         picker.dataset.value = color;
@@ -580,6 +710,11 @@ class MagazineEditor {
 
     _handleSidebarInput(e) {
         const { target } = e;
+        if (e.type === 'change' && this.sidebarInputPristineState) {
+            this.history.addState(this.sidebarInputPristineState);
+            this.sidebarInputPristineState = null;
+        }
+        
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
         if (target.matches('.native-color-picker')) {
@@ -627,7 +762,7 @@ class MagazineEditor {
 
     _handleSidebarClick(e) {
         const { target } = e;
-        
+    
         // Color picker logic
         const colorDisplayBtn = target.closest('.color-display-btn');
         if (colorDisplayBtn) {
@@ -639,17 +774,28 @@ class MagazineEditor {
             this._handleColorSelection(swatchBtn);
             return;
         }
-
+    
         // Action logic
         const actionTarget = target.closest('[data-action]');
         if (!actionTarget) return;
-
+    
         const action = actionTarget.dataset.action;
+    
+        if (action === 'toggle-layer-menu') {
+            this._toggleLayerMenu();
+            return;
+        }
+
+        const recordableActions = ['bring-to-front', 'send-to-back', 'layer-up', 'layer-down', 'align-text', 'align-vertical-text', 'toggle-property'];
+        if (recordableActions.includes(action) || action.startsWith('add-element') || action === 'delete' || action === 'perform-clip') {
+            this.history.addState(this._getStateSnapshot());
+        }
+    
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
-        
+    
         const openAccordion = this.dom.sidebar.querySelector('.accordion-panel.open');
         const openAccordionId = openAccordion ? openAccordion.id : null;
-        
+    
         const actions = {
             'deselect-element': () => this._deselectAndCleanup(),
             'add-element': () => this._addElement(actionTarget.dataset.type),
@@ -658,7 +804,6 @@ class MagazineEditor {
             'cancel-delete': () => this.renderSidebar(),
             'add-image': () => this.dom.elementImageUploadInput.click(),
             'edit-image': () => this._editImageHandler(selectedEl),
-            'toggle-layer-menu': () => this._toggleLayerMenu(),
             'bring-to-front': () => this._reorderElement('front'),
             'send-to-back': () => this._reorderElement('back'),
             'layer-up': () => this._reorderElement('up'),
@@ -679,23 +824,31 @@ class MagazineEditor {
             },
             'perform-clip': () => this._performClip(),
         };
-        
+    
         if (actions[action]) {
             actions[action]();
             if (action.startsWith('layer-') || action === 'bring-to-front' || action === 'send-to-back') {
                 this._toggleLayerMenu(false);
             }
         }
-        
-        this.renderSidebar();
-
-        if (openAccordionId && ['align-text', 'toggle-property', 'align-vertical-text'].includes(action)) {
-            const panelToReopen = this.dom.sidebar.querySelector(`#${openAccordionId}`);
-            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
-            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
-                panelToReopen.classList.add('open');
-                toggleBtn.setAttribute('aria-expanded', 'true');
-                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+    
+        // Actions that manually handle their own sidebar render state
+        const manualRenderActions = [
+            'deselect-element', 'add-element', 'delete',
+            'confirm-delete', 'cancel-delete', 'perform-clip'
+        ];
+    
+        if (!manualRenderActions.includes(action)) {
+            this.renderSidebar();
+    
+            if (openAccordionId && ['align-text', 'toggle-property', 'align-vertical-text'].includes(action)) {
+                const panelToReopen = this.dom.sidebar.querySelector(`#${openAccordionId}`);
+                const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
+                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                    panelToReopen.classList.add('open');
+                    toggleBtn.setAttribute('aria-expanded', 'true');
+                    toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+                }
             }
         }
     }
@@ -800,6 +953,7 @@ class MagazineEditor {
         }
         
         const originalText = elementData.text;
+        const preEditState = this._getStateSnapshot();
 
         const onKeyDown = (e) => {
             if (e.key === 'Enter' && !elementData.multiLine) {
@@ -814,6 +968,7 @@ class MagazineEditor {
             textContainer.contentEditable = false;
             const newText = textContainer.innerText || '';
             if (originalText !== newText) {
+                this.history.addState(preEditState);
                 this.updateSelectedElement({ text: newText });
             }
             this.state.inlineEditingElementId = null;
@@ -826,6 +981,8 @@ class MagazineEditor {
         if (e.target.closest('[contenteditable="true"]')) return;
         const draggableEl = e.target.closest('.draggable');
         if (!draggableEl) return;
+
+        this.preInteractionState = this._getStateSnapshot();
 
         const elementId = draggableEl.dataset.id;
         const elementData = this.state.elements.find(el => el.id === elementId);
@@ -867,7 +1024,8 @@ class MagazineEditor {
                 width: elementData.width || draggableEl.offsetWidth,
                 height: elementData.height || draggableEl.offsetHeight,
                 rotation: elementData.rotation,
-            }
+            },
+            moved: false
         };
 
         if (action === 'rotate') {
@@ -890,6 +1048,7 @@ class MagazineEditor {
 
     _handleInteractionMove(e) {
         if (!this.interactionState.action) return;
+        this.interactionState.moved = true;
     
         this.snapLines = []; // Clear previous snap lines
         
@@ -1018,7 +1177,11 @@ class MagazineEditor {
     }
 
     _handleInteractionEnd() {
-        if (this.interactionState.action) this._setDirty(true);
+        if (this.interactionState.moved) {
+            this.history.addState(this.preInteractionState);
+            this._setDirty(true);
+        }
+        this.preInteractionState = null;
         this.interactionState = {};
         this.snapLines = []; // Clear snap lines on mouse up
         this.renderCover(); // Re-render to remove guides

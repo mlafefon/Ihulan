@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -65,8 +66,21 @@
                     </button>
                 </div>
             </div>
+            
+            <div id="history-actions" class="mt-auto mt-4 py-4 flex justify-center gap-8">
+                <button id="undo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בטל (Ctrl+Z)" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 15l-3-3m0 0l3-3m-3 3h8a5 5 0 010 10H6"></path>
+                    </svg>
+                </button>
+                <button id="redo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בצע שוב (Ctrl+Y)" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 15l3-3m0 0l-3-3m3 3H8a5 5 0 000 10h1"></path>
+                    </svg>
+                </button>
+            </div>
 
-            <div id="bottom-actions" class="pt-4 border-t border-slate-700">
+            <div id="bottom-actions" class="pt-4">
                  <div class="grid grid-cols-2 gap-3">
                     <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700">
                         שמור שינויים
