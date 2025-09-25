@@ -1,5 +1,7 @@
 
 
+
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -41,6 +43,7 @@ class MagazineEditor {
             magazineCover: document.getElementById('magazine-cover'),
             coverBoundary: document.getElementById('cover-boundary'),
             sidebar: document.getElementById('sidebar'),
+            sidebarEditorHeader: document.getElementById('sidebar-editor-header'),
             sidebarContent: document.getElementById('sidebar-content'),
             templateActions: document.getElementById('template-actions'),
             elementImageUploadInput: document.getElementById('element-image-upload'),
@@ -161,14 +164,14 @@ class MagazineEditor {
 
     _handleGlobalClick(e) {
         if (this.isLayerMenuOpen) {
-            const toggleButton = this.dom.sidebarContent.querySelector('[data-action="toggle-layer-menu"]');
+            const toggleButton = this.dom.sidebar.querySelector('[data-action="toggle-layer-menu"]');
             const menu = document.getElementById('layer-menu');
             if (toggleButton && menu && !toggleButton.contains(e.target) && !menu.contains(e.target)) {
                 this._toggleLayerMenu(false);
             }
         }
         
-        this.dom.sidebarContent.querySelectorAll('.custom-color-picker').forEach(picker => {
+        this.dom.sidebar.querySelectorAll('.custom-color-picker').forEach(picker => {
             if (!picker.contains(e.target)) {
                 const btn = picker.querySelector('.color-display-btn');
                 if (btn.getAttribute('aria-expanded') === 'true') {
@@ -195,7 +198,7 @@ class MagazineEditor {
         const isOpening = popover.classList.contains('hidden');
 
         // Close all other popovers first
-        this.dom.sidebarContent.querySelectorAll('.color-popover:not(.hidden)').forEach(p => {
+        this.dom.sidebar.querySelectorAll('.color-popover:not(.hidden)').forEach(p => {
             if (p !== popover) {
                 p.classList.add('hidden');
                 p.previousElementSibling.setAttribute('aria-expanded', 'false');
@@ -362,6 +365,7 @@ class MagazineEditor {
             if (el.type === 'text') {
                 el.shape = el.shape || 'rectangle';
                 el.textAlign = el.textAlign || 'center';
+                el.verticalAlign = el.verticalAlign || 'center';
                 el.multiLine = el.multiLine || false;
                 el.letterSpacing = el.letterSpacing || 0;
                 el.lineHeight = el.lineHeight || 1.2;
@@ -449,7 +453,7 @@ class MagazineEditor {
 
     renderSidebar() {
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
-        renderSidebar(selectedEl, this.dom.sidebarContent, this.dom.templateActions, this.dom.bottomActions);
+        renderSidebar(selectedEl, this.dom.sidebarEditorHeader, this.dom.sidebarContent, this.dom.templateActions, this.dom.bottomActions);
     }
         
     // --- Event Handlers ---
@@ -523,7 +527,21 @@ class MagazineEditor {
             nativePicker.value = color;
         }
         
+        const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
+        const openAccordionId = openAccordion ? openAccordion.id : null;
+        
         this.renderSidebar(); // Re-render to show/hide opacity slider
+
+        if (openAccordionId) {
+            const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
+            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
+            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                panelToReopen.classList.add('open');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+            }
+        }
+        
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
@@ -542,7 +560,21 @@ class MagazineEditor {
         displaySwatch.classList.remove('is-transparent-swatch');
         displaySwatch.style.backgroundColor = color;
         
+        const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
+        const openAccordionId = openAccordion ? openAccordion.id : null;
+
         this.renderSidebar(); // Re-render to show/hide opacity slider
+
+        if (openAccordionId) {
+            const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
+            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
+            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                panelToReopen.classList.add('open');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+            }
+        }
+
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
@@ -614,7 +646,10 @@ class MagazineEditor {
 
         const action = actionTarget.dataset.action;
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
-
+        
+        const openAccordion = this.dom.sidebar.querySelector('.accordion-panel.open');
+        const openAccordionId = openAccordion ? openAccordion.id : null;
+        
         const actions = {
             'deselect-element': () => this._deselectAndCleanup(),
             'add-element': () => this._addElement(actionTarget.dataset.type),
@@ -631,13 +666,15 @@ class MagazineEditor {
             'align-text': () => {
                 const align = actionTarget.dataset.align;
                 this.updateSelectedElement({ textAlign: align });
-                this.renderSidebar();
+            },
+            'align-vertical-text': () => {
+                const align = actionTarget.dataset.align;
+                this.updateSelectedElement({ verticalAlign: align });
             },
             'toggle-property': () => {
                 const prop = actionTarget.dataset.property;
                 if (selectedEl) {
                     this.updateSelectedElement({ [prop]: !selectedEl[prop] });
-                    this.renderSidebar();
                 }
             },
             'perform-clip': () => this._performClip(),
@@ -647,6 +684,18 @@ class MagazineEditor {
             actions[action]();
             if (action.startsWith('layer-') || action === 'bring-to-front' || action === 'send-to-back') {
                 this._toggleLayerMenu(false);
+            }
+        }
+        
+        this.renderSidebar();
+
+        if (openAccordionId && ['align-text', 'toggle-property', 'align-vertical-text'].includes(action)) {
+            const panelToReopen = this.dom.sidebar.querySelector(`#${openAccordionId}`);
+            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
+            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                panelToReopen.classList.add('open');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
             }
         }
     }
@@ -983,7 +1032,8 @@ class MagazineEditor {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
             fontWeight: 700, fontFamily: 'Heebo', shadow: false,
-            bgColor: 'transparent', bgColorOpacity: 1, rotation: 0, shape: 'rectangle', textAlign: 'center',
+            bgColor: 'transparent', bgColorOpacity: 1, rotation: 0, shape: 'rectangle', 
+            textAlign: 'center', verticalAlign: 'center',
             multiLine: false, width: 300, height: 80,
             letterSpacing: 0, lineHeight: 1.2
         } : type === 'image' ? {

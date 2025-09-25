@@ -130,6 +130,7 @@ const _createTextEditorControls = (el) => {
                     <div class="flex gap-2">
                         <div class="flex-1">${_createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}</div>
                         <div class="flex-1">${_createSidebarInput('number', 'lineHeight', 'מרווח שורות', el.lineHeight || 1.2, { step: 0.1 })}</div>
+                        <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
                     </div>
                 </div>
             </div>
@@ -150,24 +151,23 @@ const _createTextEditorControls = (el) => {
                         <label for="bg-opacity-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">שקיפות רקע</label>
                         <input type="range" id="bg-opacity-slider" data-property="bgColorOpacity" min="0" max="1" step="0.01" value="${el.bgColorOpacity ?? 1}" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                     </div>` : ''}
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 items-end">
                         <div class="flex-1">
                             <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
                             <select data-property="shape" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 h-10">
                                 ${shapeOptions.map(o => `<option value="${o.value}" ${o.value === el.shape ? 'selected' : ''}>${o.text}</option>`).join('')}
                             </select>
                         </div>
-                        <div class="flex-1">${_createSidebarSelect('fontWeight', 'משקל גופן', el.fontWeight, [400, 700, 900])}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">אפקטים</label>
-                        <div class="toggle-controls-group w-1/2">
-                             <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
-                                    <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" opacity="0.4" transform="translate(1.5, 1.5)"/>
-                                    <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z"/>
-                                </svg>
-                            </button>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-300 mb-1">צל</label>
+                            <div class="toggle-controls-group">
+                                 <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5">
+                                        <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" fill="black" transform="translate(1.5, 1.5)"/>
+                                        <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -180,8 +180,8 @@ const _createTextEditorControls = (el) => {
                     <svg class="accordion-chevron h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <div id="align-layout-panel" class="accordion-panel space-y-3">
-                     <div class="grid grid-cols-2 gap-2">
-                        <div>
+                    <div class="flex gap-2 items-end">
+                         <div class="flex-grow">
                             <label class="block text-sm font-medium text-slate-300 mb-1">יישור טקסט</label>
                             <div class="text-align-group">
                                 <button data-action="align-text" data-align="right" class="align-btn ${el.textAlign === 'right' ? 'active' : ''}" title="יישור לימין"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM4 10a1 1 0 011-1h12a1 1 0 110 2H5a1 1 0 01-1-1zM8 15a1 1 0 011-1h8a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
@@ -190,17 +190,33 @@ const _createTextEditorControls = (el) => {
                                 <button data-action="align-text" data-align="justify" class="align-btn ${el.textAlign === 'justify' ? 'active' : ''}" title="יישור לשני הצדדים"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button>
                             </div>
                         </div>
-                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">פריסת טקסט</label>
-                            <div class="toggle-controls-group w-1/2">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">רב שורה</label>
+                            <div class="toggle-controls-group">
                                 <button type="button" class="toggle-btn ${el.multiLine ? 'active' : ''}" data-action="toggle-property" data-property="multiLine" title="רב שורה" aria-pressed="${!!el.multiLine}">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd" />
+                                        <path fill-rule="evenodd" d="M2 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zm0 5a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
                             </div>
                         </div>
                     </div>
+                    ${el.multiLine ? `
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">יישור אנכי</label>
+                        <div class="text-align-group">
+                            <button data-action="align-vertical-text" data-align="start" class="align-btn ${el.verticalAlign === 'start' ? 'active' : ''}" title="יישור למעלה">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path d="M2 2h16v16H2V2zm2 2v4h12V4H4z" /></svg>
+                            </button>
+                            <button data-action="align-vertical-text" data-align="center" class="align-btn ${el.verticalAlign === 'center' ? 'active' : ''}" title="יישור לאמצע">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path d="M2 2h16v16H2V2zm2 6v4h12V8H4z" /></svg>
+                            </button>
+                            <button data-action="align-vertical-text" data-align="end" class="align-btn ${el.verticalAlign === 'end' ? 'active' : ''}" title="יישור למטה">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path d="M2 2h16v16H2V2zm2 10v4h12v-4H4z" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         </div>
@@ -268,7 +284,7 @@ const _createDeleteButton = () => {
     return button;
 }
 
-const _createEditorSidebar = (el) => {
+const _createEditorHeaderFragment = (el) => {
     const fragment = document.createDocumentFragment();
     const typeNameMap = { 'text': 'טקסט', 'image': 'תמונה', 'clipping-shape': 'צורת חיתוך' };
     const typeName = typeNameMap[el.type] || 'אלמנט';
@@ -286,7 +302,11 @@ const _createEditorSidebar = (el) => {
         headerWrapper.appendChild(idEditorDiv);
     }
     fragment.appendChild(headerWrapper);
+    return fragment;
+};
 
+const _createEditorControlsFragment = (el) => {
+    const fragment = document.createDocumentFragment();
     if (el.type === 'text') fragment.appendChild(_createTextEditorControls(el));
     else if (el.type === 'image') fragment.appendChild(_createImageEditorControls(el));
     else if (el.type === 'clipping-shape') fragment.appendChild(_createClippingShapeEditorControls(el));
@@ -296,7 +316,7 @@ const _createEditorSidebar = (el) => {
          fragment.appendChild(_createDeleteButton());
     }
     return fragment;
-}
+};
 
 
 // --- Cover Element Renderers (Exported) ---
@@ -320,7 +340,18 @@ const _createTransformHandles = () => {
 const _applyTextStyles = (domEl, el, scale) => {
     const backgroundElement = document.createElement('div');
     const bgColorWithOpacity = _hexToRgba(el.bgColor, el.bgColorOpacity ?? 1);
-    Object.assign(backgroundElement.style, { width: '100%', height: '100%', backgroundColor: bgColorWithOpacity, padding: el.padding || '0px' });
+
+    const verticalAlignMap = { start: 'flex-start', center: 'center', end: 'flex-end' };
+    const verticalJustify = el.multiLine ? (verticalAlignMap[el.verticalAlign] || 'center') : 'center';
+
+    Object.assign(backgroundElement.style, {
+        width: '100%', height: '100%',
+        backgroundColor: bgColorWithOpacity,
+        padding: el.padding || '0px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: verticalJustify
+    });
     
     switch (el.shape) {
         case 'rounded-rectangle': backgroundElement.style.borderRadius = '25px'; break;
@@ -334,12 +365,12 @@ const _applyTextStyles = (domEl, el, scale) => {
     const font = FONTS.find(f => f.family === el.fontFamily);
     const fontClassName = font ? font.className : 'font-heebo';
     textWrapper.className = fontClassName;
-    const baseStyles = { color: el.color, fontSize: `${el.fontSize * scale}px`, fontWeight: el.fontWeight, textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', textAlign: el.textAlign || 'center', width: '100%', height: '100%', letterSpacing: `${el.letterSpacing || 0}px`, lineHeight: el.lineHeight || 1.2 };
+    const baseStyles = { color: el.color, fontSize: `${el.fontSize * scale}px`, fontWeight: el.fontWeight, textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', textAlign: el.textAlign || 'center', width: '100%', letterSpacing: `${el.letterSpacing || 0}px`, lineHeight: el.lineHeight || 1.2 };
     if (el.multiLine) {
         Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'pre-wrap', overflow: 'hidden', wordBreak: 'break-word' });
     } else {
         const justifyContentMap = { left: 'flex-end', center: 'center', right: 'flex-start' };
-        Object.assign(textWrapper.style, baseStyles, { display: 'flex', alignItems: 'center', justifyContent: justifyContentMap[el.textAlign] || 'center', whiteSpace: 'nowrap', overflow: 'hidden' });
+        Object.assign(textWrapper.style, baseStyles, { display: 'flex', justifyContent: justifyContentMap[el.textAlign] || 'center', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden' });
     }
     backgroundElement.appendChild(textWrapper);
     domEl.appendChild(backgroundElement);
@@ -349,7 +380,7 @@ const _applyImageStyles = (domEl, el) => {
     Object.assign(domEl.style, { display: 'flex', justifyContent: 'center', alignItems: 'center' });
     if (el.src) {
         const img = document.createElement('img');
-        img.crossOrigin = "anonymous";
+        img.crossOrigin = "Anonymous";
         img.src = el.src;
         img.className = 'w-full h-full object-cover pointer-events-none';
         domEl.appendChild(img);
@@ -401,16 +432,22 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
     return domEl;
 }
 
-export function renderSidebar(selectedEl, sidebarContent, templateActions, bottomActions) {
+export function renderSidebar(selectedEl, sidebarEditorHeader, sidebarContent, templateActions, bottomActions) {
+    sidebarEditorHeader.innerHTML = '';
+    sidebarContent.innerHTML = '';
+
     if (selectedEl) {
-        sidebarContent.innerHTML = '';
-        sidebarContent.appendChild(_createEditorSidebar(selectedEl));
+        sidebarEditorHeader.appendChild(_createEditorHeaderFragment(selectedEl));
+        sidebarContent.appendChild(_createEditorControlsFragment(selectedEl));
+        
+        sidebarEditorHeader.classList.remove('hidden');
         sidebarContent.classList.remove('hidden');
         templateActions.classList.add('hidden');
         if (bottomActions) {
             bottomActions.classList.add('hidden');
         }
     } else {
+        sidebarEditorHeader.classList.add('hidden');
         sidebarContent.classList.add('hidden');
         templateActions.classList.remove('hidden');
         if (bottomActions) {
