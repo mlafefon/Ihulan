@@ -1,3 +1,4 @@
+
 export class ImageEditor {
     constructor(editor) {
         this.editor = editor;
@@ -357,6 +358,8 @@ export class ImageEditor {
         if (!this.state) return;
         this.editor.history.addState(this.state.preEditEditorState);
         const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints, frameData } = this.state;
+        
+        const shouldApplyBlur = isBlurred || (brushMaskPoints && brushMaskPoints.length > 0);
     
         let finalCanvas = document.createElement('canvas');
         finalCanvas.width = targetElement.width;
@@ -384,7 +387,7 @@ export class ImageEditor {
         const sW = this.dom.previewFrame.offsetWidth / zoom;
         const sH = this.dom.previewFrame.offsetHeight / zoom;
     
-        if (isBlurred) {
+        if (shouldApplyBlur) {
             const sharpCanvas = document.createElement('canvas'); sharpCanvas.width = finalCanvas.width; sharpCanvas.height = finalCanvas.height; const sharpCtx = sharpCanvas.getContext('2d'); sharpCtx.filter = this._getFilterString(); sharpCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, sharpCanvas.width, sharpCanvas.height);
             const blurredCanvas = document.createElement('canvas'); blurredCanvas.width = finalCanvas.width; blurredCanvas.height = finalCanvas.height; const blurredCtx = blurredCanvas.getContext('2d'); blurredCtx.filter = `blur(4px) ${this._getFilterString()}`; blurredCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, blurredCanvas.width, blurredCanvas.height);
             const maskCanvas = document.createElement('canvas'); maskCanvas.width = finalCanvas.width; maskCanvas.height = finalCanvas.height; const maskCtx = maskCanvas.getContext('2d');
@@ -428,7 +431,7 @@ export class ImageEditor {
         }
 
         const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters, colorSwap, blurData: isBlurred ? { points: brushMaskPoints } : null, frameData };
+        const cropData = { zoom, pan, filters, colorSwap, blurData: shouldApplyBlur ? { points: brushMaskPoints } : null, frameData };
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
         if (this.state) { this.state.preUploadState = null; }
         this.close();

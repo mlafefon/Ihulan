@@ -202,7 +202,7 @@ class MagazineEditor {
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
-
+        
         // Add generic accordion handler for both sidebars
         [this.dom.sidebar, this.imageEditor.dom.modal].forEach(container => {
             container.addEventListener('click', e => {
@@ -266,8 +266,11 @@ class MagazineEditor {
         }
         
         this.dom.sidebar.querySelectorAll('.custom-color-picker').forEach(picker => {
-            if (!picker.contains(e.target)) {
-                const btn = picker.querySelector('.color-display-btn');
+            const isClickInsidePicker = picker.contains(e.target);
+            const isClickOnNativePickerInterface = e.target.closest('.custom-color-input-wrapper');
+            
+            if (!isClickInsidePicker && !isClickOnNativePickerInterface) {
+                 const btn = picker.querySelector('.color-display-btn');
                 if (btn.getAttribute('aria-expanded') === 'true') {
                     this._toggleColorPopover(btn, true);
                 }
@@ -674,38 +677,42 @@ class MagazineEditor {
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
 
-    _handleNativeColorChange(input) {
+    _handleNativeColorChange(input, e) {
         const color = input.value;
         const picker = input.closest('.custom-color-picker');
         if (!picker) return;
-
+    
         const prop = picker.dataset.property;
-        this.history.addState(this._getStateSnapshot());
+        
+        // Part that runs on both 'input' (dragging) and 'change' (selection confirmed)
         this.updateSelectedElement({ [prop]: color });
-
+    
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
-        if (!displaySwatch) return;
-
-        displaySwatch.classList.remove('is-transparent-swatch');
-        displaySwatch.style.backgroundColor = color;
-        
-        const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
-        const openAccordionId = openAccordion ? openAccordion.id : null;
-
-        this.renderSidebar(); // Re-render to show/hide opacity slider
-
-        if (openAccordionId) {
-            const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
-            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
-            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
-                panelToReopen.classList.add('open');
-                toggleBtn.setAttribute('aria-expanded', 'true');
-                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
-            }
+        if (displaySwatch) {
+            displaySwatch.classList.remove('is-transparent-swatch');
+            displaySwatch.style.backgroundColor = color;
         }
-
-        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+    
+        // Part that runs only on 'change' (when user is done)
+        if (e.type === 'change') {
+            const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
+            const openAccordionId = openAccordion ? openAccordion.id : null;
+    
+            this.renderSidebar(); // Re-render to show/hide opacity slider if needed
+    
+            if (openAccordionId) {
+                const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
+                const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
+                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                    panelToReopen.classList.add('open');
+                    toggleBtn.setAttribute('aria-expanded', 'true');
+                    toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+                }
+            }
+    
+            this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+        }
     }
 
     _handleSidebarInput(e) {
@@ -718,7 +725,7 @@ class MagazineEditor {
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
         if (target.matches('.native-color-picker')) {
-            this._handleNativeColorChange(target);
+            this._handleNativeColorChange(target, e);
             return;
         }
         

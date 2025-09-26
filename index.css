@@ -301,6 +301,7 @@ button { text-transform: none; background-color: transparent; background-image: 
     padding-bottom: 0;
 }
 .accordion-panel.open {
+    overflow: visible;
     max-height: 500px; /* Adjust if content is larger */
     transition: max-height 0.3s ease-in, padding-top 0.3s ease-in, padding-bottom 0.3s ease-in;
     padding-top: 0.5rem;
