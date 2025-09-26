@@ -435,7 +435,7 @@ export class ImageEditor {
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
         if (this.state) { this.state.preUploadState = null; }
         this.close();
-        this.editor.renderSidebar();
+        this.editor._renderSidebarAndPreserveAccordion();
     }
 
     _updateColorSwapUI() {

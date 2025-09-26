@@ -551,7 +551,24 @@ class MagazineEditor {
 
     render() {
         this.renderCover();
+        this._renderSidebarAndPreserveAccordion();
+    }
+
+    _renderSidebarAndPreserveAccordion() {
+        const openAccordion = this.dom.sidebar.querySelector('.accordion-panel.open');
+        const openAccordionId = openAccordion ? openAccordion.id : null;
+
         this.renderSidebar();
+
+        if (openAccordionId) {
+            const panelToReopen = this.dom.sidebar.querySelector(`#${openAccordionId}`);
+            if (panelToReopen) {
+                const toggleBtn = panelToReopen.previousElementSibling;
+                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                    toggleBtn.click();
+                }
+            }
+        }
     }
 
     renderCover() {
@@ -659,20 +676,7 @@ class MagazineEditor {
             nativePicker.value = color;
         }
         
-        const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
-        const openAccordionId = openAccordion ? openAccordion.id : null;
-        
-        this.renderSidebar(); // Re-render to show/hide opacity slider
-
-        if (openAccordionId) {
-            const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
-            const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
-            if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
-                panelToReopen.classList.add('open');
-                toggleBtn.setAttribute('aria-expanded', 'true');
-                toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
-            }
-        }
+        this._renderSidebarAndPreserveAccordion(); // Re-render to show/hide opacity slider
         
         this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
     }
@@ -696,20 +700,7 @@ class MagazineEditor {
     
         // Part that runs only on 'change' (when user is done)
         if (e.type === 'change') {
-            const openAccordion = this.dom.sidebarContent.querySelector('.accordion-panel.open');
-            const openAccordionId = openAccordion ? openAccordion.id : null;
-    
-            this.renderSidebar(); // Re-render to show/hide opacity slider if needed
-    
-            if (openAccordionId) {
-                const panelToReopen = this.dom.sidebarContent.querySelector(`#${openAccordionId}`);
-                const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
-                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
-                    panelToReopen.classList.add('open');
-                    toggleBtn.setAttribute('aria-expanded', 'true');
-                    toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
-                }
-            }
+            this._renderSidebarAndPreserveAccordion(); // Re-render to show/hide opacity slider if needed
     
             this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
         }
@@ -800,15 +791,12 @@ class MagazineEditor {
     
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
     
-        const openAccordion = this.dom.sidebar.querySelector('.accordion-panel.open');
-        const openAccordionId = openAccordion ? openAccordion.id : null;
-    
         const actions = {
             'deselect-element': () => this._deselectAndCleanup(),
             'add-element': () => this._addElement(actionTarget.dataset.type),
             'delete': () => this._renderDeleteConfirmation(),
             'confirm-delete': () => this._deleteSelectedElement(),
-            'cancel-delete': () => this.renderSidebar(),
+            'cancel-delete': () => this._renderSidebarAndPreserveAccordion(),
             'add-image': () => this.dom.elementImageUploadInput.click(),
             'edit-image': () => this._editImageHandler(selectedEl),
             'bring-to-front': () => this._reorderElement('front'),
@@ -846,17 +834,7 @@ class MagazineEditor {
         ];
     
         if (!manualRenderActions.includes(action)) {
-            this.renderSidebar();
-    
-            if (openAccordionId && ['align-text', 'toggle-property', 'align-vertical-text'].includes(action)) {
-                const panelToReopen = this.dom.sidebar.querySelector(`#${openAccordionId}`);
-                const toggleBtn = panelToReopen ? panelToReopen.previousElementSibling : null;
-                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
-                    panelToReopen.classList.add('open');
-                    toggleBtn.setAttribute('aria-expanded', 'true');
-                    toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
-                }
-            }
+            this._renderSidebarAndPreserveAccordion();
         }
     }
 
@@ -1192,7 +1170,7 @@ class MagazineEditor {
         this.interactionState = {};
         this.snapLines = []; // Clear snap lines on mouse up
         this.renderCover(); // Re-render to remove guides
-        this.renderSidebar();
+        this._renderSidebarAndPreserveAccordion();
     }
 
     // --- Element Actions ---

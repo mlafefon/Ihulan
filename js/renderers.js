@@ -1,3 +1,4 @@
+
 // --- Sidebar Control Builders (Private helpers) ---
 
 import { FONTS } from './fonts.js';
@@ -400,7 +401,11 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
         transform: `rotate(${el.rotation}deg)`, zIndex: el.type === 'clipping-shape' ? 999 : zIndex,
     });
     if (el.id === state.selectedElementId && scale === 1) domEl.classList.add('selected');
-    if (el.type === 'text') _applyTextStyles(domEl, el, scale);
+    
+    if (el.type === 'text') {
+        domEl.classList.add('element-type-text');
+        _applyTextStyles(domEl, el, scale);
+    }
     else if (el.type === 'image') {
         domEl.classList.add('element-type-image'); 
         _applyImageStyles(domEl, el);
