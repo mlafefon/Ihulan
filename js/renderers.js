@@ -1,4 +1,3 @@
-
 // --- Sidebar Control Builders (Private helpers) ---
 
 import { FONTS } from './fonts.js';
@@ -362,7 +361,7 @@ const _applyTextStyles = (domEl, el, scale) => {
     }
     const textWrapper = document.createElement('div');
     textWrapper.dataset.role = 'text-content';
-    textWrapper.innerText = el.multiLine ? el.text : el.text.replace(/(\r\n|\n|\r)/gm, " ");
+    textWrapper.innerHTML = el.text; // Use innerHTML to render styled spans
     const font = FONTS.find(f => f.family === el.fontFamily);
     const fontClassName = font ? font.className : 'font-heebo';
     textWrapper.className = fontClassName;
@@ -370,8 +369,7 @@ const _applyTextStyles = (domEl, el, scale) => {
     if (el.multiLine) {
         Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'pre-wrap', overflow: 'hidden', wordBreak: 'break-word' });
     } else {
-        const justifyContentMap = { left: 'flex-end', center: 'center', right: 'flex-start' };
-        Object.assign(textWrapper.style, baseStyles, { display: 'flex', justifyContent: justifyContentMap[el.textAlign] || 'center', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden' });
+        Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'nowrap', overflow: 'hidden' });
     }
     backgroundElement.appendChild(textWrapper);
     domEl.appendChild(backgroundElement);

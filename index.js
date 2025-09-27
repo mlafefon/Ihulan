@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -100,11 +101,11 @@ class MagazineEditor {
         this.templates = [];
         this.isLayerMenuOpen = false;
         this.snapLines = []; // For snapping guides
+        this.savedRange = null; // To preserve text selection
 
         // History management
         this.historyRecordingSuspended = false;
         this.preInteractionState = null;
-        this.sidebarInputPristineState = null;
         
 
         this._init();
@@ -194,11 +195,6 @@ class MagazineEditor {
         this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
         this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
 
-        this.dom.sidebar.addEventListener('focusin', (e) => {
-            if (e.target.matches('input[type="text"], input[type="number"], input[type="range"], select')) {
-                this.sidebarInputPristineState = this._getStateSnapshot();
-            }
-        });
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
@@ -228,6 +224,8 @@ class MagazineEditor {
                 this.history.redo();
             }
         });
+
+        document.addEventListener('selectionchange', this._updateSidebarForSelection.bind(this));
     }
 
     _toggleAccordionPanel(toggleBtn) {
@@ -657,10 +655,21 @@ class MagazineEditor {
         const color = btn.dataset.color;
         const picker = btn.closest('.custom-color-picker');
         if (!picker) return;
+        
         const prop = picker.dataset.property;
+        
+        const preEditState = this._getStateSnapshot();
+        const wasAppliedToSelection = this._applyStyleToSelection({ [prop]: color });
 
-        this.history.addState(this._getStateSnapshot());
-        this.updateSelectedElement({ [prop]: color });
+        
+        if (wasAppliedToSelection) {
+            this.history.addState(preEditState);
+            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+            this.updateSelectedElement({ text: textContainer.innerHTML });
+        } else {
+            this.updateSelectedElement({ [prop]: color });
+            this.history.addState(preEditState);
+        }
 
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
@@ -687,9 +696,16 @@ class MagazineEditor {
         if (!picker) return;
     
         const prop = picker.dataset.property;
-        
-        // Part that runs on both 'input' (dragging) and 'change' (selection confirmed)
-        this.updateSelectedElement({ [prop]: color });
+        const preEditState = this._getStateSnapshot();
+
+        const wasApplied = this._applyStyleToSelection({ [prop]: color });
+
+        if (!wasApplied) {
+            this.updateSelectedElement({ [prop]: color });
+        } else {
+            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+            this.updateSelectedElement({ text: textContainer.innerHTML });
+        }
     
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
@@ -698,20 +714,15 @@ class MagazineEditor {
             displaySwatch.style.backgroundColor = color;
         }
     
-        // Part that runs only on 'change' (when user is done)
         if (e.type === 'change') {
-            this._renderSidebarAndPreserveAccordion(); // Re-render to show/hide opacity slider if needed
-    
+            this.history.addState(preEditState);
+            this._renderSidebarAndPreserveAccordion();
             this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
         }
     }
 
     _handleSidebarInput(e) {
         const { target } = e;
-        if (e.type === 'change' && this.sidebarInputPristineState) {
-            this.history.addState(this.sidebarInputPristineState);
-            this.sidebarInputPristineState = null;
-        }
         
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
@@ -721,13 +732,36 @@ class MagazineEditor {
         }
         
         if (target.dataset.property && selectedEl) {
-            const prop = target.dataset.property;
-            let value;
+            const preEditState = this._getStateSnapshot();
 
-            if (target.type === 'number' || target.type === 'range') {
-                value = parseFloat(target.value) || 0;
-            } else {
-                value = target.value;
+            const prop = target.dataset.property;
+            let value = (target.type === 'number' || target.type === 'range') ? (parseFloat(target.value) || 0) : target.value;
+
+            // Rich text properties
+            const styleProps = {
+                fontSize: val => ({ fontSize: `${val}px` }),
+                fontFamily: val => ({ fontFamily: val }),
+                fontWeight: val => ({ fontWeight: val }),
+                letterSpacing: val => ({ letterSpacing: `${val}px` }),
+                lineHeight: val => ({ lineHeight: val })
+            };
+            
+            if (selectedEl.type === 'text' && this.state.inlineEditingElementId === selectedEl.id && styleProps[prop]) {
+                const styleObject = styleProps[prop](value);
+                if (this._applyStyleToSelection(styleObject)) {
+                    // Only record history on 'change' to avoid flooding it with 'input' events from sliders
+                    if (e.type === 'change') {
+                        this.history.addState(preEditState);
+                    }
+                    const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"] [data-role="text-content"]`);
+                    selectedEl.text = textContainer.innerHTML;
+                    this._setDirty(true);
+                    return; // Stop further processing
+                }
+            }
+        
+            if (e.type === 'change') {
+                this.history.addState(preEditState);
             }
 
             if (prop === 'id') {
@@ -755,6 +789,61 @@ class MagazineEditor {
             if (prop === 'multiLine') {
                 this.renderCover();
             }
+        }
+    }
+    
+    _applyStyleToSelection(style) {
+        const selection = window.getSelection();
+        let range;
+    
+        if (this.savedRange) {
+            range = this.savedRange;
+        } else if (selection.rangeCount > 0 && !selection.isCollapsed) {
+            range = selection.getRangeAt(0);
+        } else {
+            return false;
+        }
+    
+        const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
+        if (!editorEl || !editorEl.contains(range.commonAncestorContainer)) {
+            this.savedRange = null;
+            return false;
+        }
+    
+        selection.removeAllRanges();
+        selection.addRange(range);
+    
+        try {
+            // New logic: Check if the selection is already fully inside a single span.
+            const contents = range.cloneContents();
+            const meaningfulNodes = Array.from(contents.childNodes).filter(n =>
+                !(n.nodeType === Node.TEXT_NODE && n.textContent.trim() === '')
+            );
+    
+            if (meaningfulNodes.length === 1 && meaningfulNodes[0].nodeType === Node.ELEMENT_NODE && meaningfulNodes[0].tagName === 'SPAN') {
+                // If so, modify that span instead of creating a new one.
+                const extractedSpan = range.extractContents().firstChild;
+                Object.assign(extractedSpan.style, style);
+                range.insertNode(extractedSpan);
+                range.selectNodeContents(extractedSpan);
+            } else {
+                // Original logic for other cases.
+                const span = document.createElement('span');
+                Object.assign(span.style, style);
+                const extractedContents = range.extractContents();
+                span.appendChild(extractedContents);
+                range.insertNode(span);
+                range.selectNodeContents(span);
+            }
+    
+            selection.removeAllRanges();
+            selection.addRange(range);
+            this.savedRange = range.cloneRange();
+    
+            return true;
+        } catch(e) {
+            console.error("Could not apply style to selection:", e);
+            return false;
         }
     }
 
@@ -785,8 +874,12 @@ class MagazineEditor {
         }
 
         const recordableActions = ['bring-to-front', 'send-to-back', 'layer-up', 'layer-down', 'align-text', 'align-vertical-text', 'toggle-property'];
+        const preEditState = this._getStateSnapshot();
+        let recordHistory = true;
+
         if (recordableActions.includes(action) || action.startsWith('add-element') || action === 'delete' || action === 'perform-clip') {
-            this.history.addState(this._getStateSnapshot());
+            this.history.addState(preEditState);
+            recordHistory = false; // History already added
         }
     
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
@@ -814,13 +907,34 @@ class MagazineEditor {
             'toggle-property': () => {
                 const prop = actionTarget.dataset.property;
                 if (selectedEl) {
-                    this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                     if (prop === 'shadow' && selectedEl.type === 'text') {
+                        // Check if text is selected inside the contenteditable element
+                        const selection = window.getSelection();
+                        const hasSelection = this.savedRange || (selection.rangeCount > 0 && !selection.isCollapsed);
+
+                        if (hasSelection) {
+                            // Apply/remove shadow only to selected text
+                            const currentStyle = window.getComputedStyle(selection.getRangeAt(0).commonAncestorContainer.parentElement).textShadow;
+                            const hasShadow = currentStyle && currentStyle !== 'none';
+                            const style = { textShadow: hasShadow ? 'none' : '2px 2px 4px rgba(0,0,0,0.7)' };
+                             if (this._applyStyleToSelection(style)) {
+                                 const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+                                 this.updateSelectedElement({ text: textContainer.innerHTML });
+                             }
+                        } else {
+                            // Apply/remove shadow from the whole element
+                            this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                        }
+                    } else {
+                         this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                    }
                 }
             },
             'perform-clip': () => this._performClip(),
         };
     
         if (actions[action]) {
+            if (recordHistory) this.history.addState(preEditState);
             actions[action]();
             if (action.startsWith('layer-') || action === 'bring-to-front' || action === 'send-to-back') {
                 this._toggleLayerMenu(false);
@@ -898,6 +1012,8 @@ class MagazineEditor {
     }
 
     _startInlineEditing(elementData, draggableEl, clickEvent) {
+        if (this.state.inlineEditingElementId === elementData.id) return; // Already editing
+        
         if (!elementData.multiLine && (typeof elementData.width === 'undefined' || typeof elementData.height === 'undefined')) {
             elementData.width = draggableEl.offsetWidth;
             elementData.height = draggableEl.offsetHeight;
@@ -916,7 +1032,6 @@ class MagazineEditor {
         const selection = window.getSelection();
         if (selection) {
             let range;
-            // Modern browsers
             if (document.caretPositionFromPoint) {
                 const pos = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
                 if (pos) {
@@ -927,7 +1042,6 @@ class MagazineEditor {
                     selection.addRange(range);
                 }
             } 
-            // Older browsers
             else if (document.caretRangeFromPoint) {
                 range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
                 if (range) {
@@ -937,28 +1051,43 @@ class MagazineEditor {
             }
         }
         
-        const originalText = elementData.text;
         const preEditState = this._getStateSnapshot();
+        const originalText = textContainer.innerHTML;
 
         const onKeyDown = (e) => {
             if (e.key === 'Enter' && !elementData.multiLine) {
                 e.preventDefault();
-                textContainer.blur();
+                textContainer.blur(); // Triggers focusout
             }
         };
 
         const onEditEnd = () => {
-            textContainer.removeEventListener('blur', onEditEnd);
+            textContainer.removeEventListener('focusout', onFocusOut);
             textContainer.removeEventListener('keydown', onKeyDown);
             textContainer.contentEditable = false;
-            const newText = textContainer.innerText || '';
+            
+            const newText = this._cleanupTextHtml(textContainer.innerHTML || '');
+            
             if (originalText !== newText) {
                 this.history.addState(preEditState);
                 this.updateSelectedElement({ text: newText });
             }
             this.state.inlineEditingElementId = null;
+            this.savedRange = null; // Clear saved range
         };
-        textContainer.addEventListener('blur', onEditEnd);
+        
+        const onFocusOut = (e) => {
+            if (this.dom.sidebar.contains(e.relatedTarget)) {
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    this.savedRange = selection.getRangeAt(0).cloneRange();
+                }
+            } else {
+                onEditEnd();
+            }
+        };
+
+        textContainer.addEventListener('focusout', onFocusOut);
         textContainer.addEventListener('keydown', onKeyDown);
     }
 
@@ -991,7 +1120,10 @@ class MagazineEditor {
             }
             
             this.state.selectedElementId = elementId;
-            this.state.inlineEditingElementId = null;
+            // If selecting a new element, stop inline editing of the previous one
+            if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
+                 this.state.inlineEditingElementId = null;
+            }
             this.render();
         }
         
@@ -1046,7 +1178,7 @@ class MagazineEditor {
         
         this.renderCover();
     
-        if (this.interactionState.action === 'resize' && (this.interactionState.element.type === 'image' || this.interactionState.element.type === 'clipping-shape')) {
+        if (this.interactionState.action === 'resize' && (this.interactionState.element.type === 'image' || this.interactionState.element.type === 'clipping-shape' || (this.interactionState.element.type === 'text' && this.interactionState.element.multiLine))) {
             const el = this.interactionState.element;
             const widthInput = this.dom.sidebarContent.querySelector('[data-property="width"]');
             const heightInput = this.dom.sidebarContent.querySelector('[data-property="height"]');
@@ -1151,7 +1283,7 @@ class MagazineEditor {
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
             if (direction.includes('s') && Math.abs(bottomEdge - guide) < SNAP_THRESHOLD) {
-                newHeight = guide - newY;
+                newHeight = guide - newX;
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
         }
@@ -1171,6 +1303,191 @@ class MagazineEditor {
         this.snapLines = []; // Clear snap lines on mouse up
         this.renderCover(); // Re-render to remove guides
         this._renderSidebarAndPreserveAccordion();
+    }
+
+    _rgbToHex(rgb) {
+        if (!rgb || !rgb.startsWith('rgb')) return '#000000';
+        const result = rgb.match(/\d+/g);
+        if (!result || result.length < 3) return '#000000';
+        
+        const r = parseInt(result[0], 10);
+        const g = parseInt(result[1], 10);
+        const b = parseInt(result[2], 10);
+        
+        const toHex = (c) => ('0' + c.toString(16)).slice(-2);
+        
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    _updateSidebarForSelection() {
+        if (!this.state.inlineEditingElementId) return;
+
+        const selection = window.getSelection();
+        if (selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        let element = range.startContainer;
+
+        if (element.nodeType === Node.TEXT_NODE) {
+            element = element.parentElement;
+        }
+
+        const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
+        if (!editorEl || !editorEl.contains(element)) {
+            return;
+        }
+
+        const styles = window.getComputedStyle(element);
+        const sidebar = this.dom.sidebarContent;
+        if (!sidebar) return;
+
+        // Font Family
+        const fontFamilySelect = sidebar.querySelector('[data-property="fontFamily"]');
+        if (fontFamilySelect) {
+            const fontName = styles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+            if ([...fontFamilySelect.options].some(o => o.value === fontName)) {
+                fontFamilySelect.value = fontName;
+            }
+        }
+        
+        // Font Size
+        const fontSizeInput = sidebar.querySelector('[data-property="fontSize"]');
+        if (fontSizeInput) {
+            fontSizeInput.value = parseInt(styles.fontSize, 10);
+        }
+        
+        // Font Weight
+        const fontWeightSelect = sidebar.querySelector('[data-property="fontWeight"]');
+        if (fontWeightSelect) {
+            fontWeightSelect.value = styles.fontWeight;
+        }
+
+        // Letter Spacing
+        const letterSpacingInput = sidebar.querySelector('[data-property="letterSpacing"]');
+        if (letterSpacingInput) {
+            letterSpacingInput.value = parseFloat(styles.letterSpacing) || 0;
+        }
+
+        // Line Height
+        const lineHeightInput = sidebar.querySelector('[data-property="lineHeight"]');
+        if (lineHeightInput) {
+            lineHeightInput.value = parseFloat(styles.lineHeight) || 1.2;
+        }
+
+        // Text Color
+        const colorPicker = sidebar.querySelector('[data-property="color"]');
+        if (colorPicker) {
+            const hexColor = this._rgbToHex(styles.color);
+            colorPicker.dataset.value = hexColor;
+            const displaySwatch = colorPicker.querySelector('.color-swatch-display');
+            const nativePicker = colorPicker.querySelector('.native-color-picker');
+            if (displaySwatch) {
+                displaySwatch.style.backgroundColor = hexColor;
+                displaySwatch.classList.remove('is-transparent-swatch');
+            }
+            if (nativePicker) {
+                nativePicker.value = hexColor;
+            }
+        }
+        
+        // Shadow Toggle
+        const shadowToggle = sidebar.querySelector('[data-action="toggle-property"][data-property="shadow"]');
+        if (shadowToggle) {
+            const hasShadow = styles.textShadow && styles.textShadow !== 'none';
+            shadowToggle.classList.toggle('active', hasShadow);
+            shadowToggle.setAttribute('aria-pressed', String(hasShadow));
+        }
+    }
+
+    // --- HTML Cleanup Helpers ---
+    _cssTextToObject(cssText) {
+        const obj = {};
+        if (!cssText) return obj;
+        cssText.split(';').forEach(declaration => {
+            if (declaration.trim()) {
+                const [property, value] = declaration.split(':', 2);
+                if (property && value) {
+                    obj[property.trim()] = value.trim();
+                }
+            }
+        });
+        return obj;
+    }
+
+    _objectToCssText(obj) {
+        return Object.entries(obj)
+            .map(([property, value]) => `${property}: ${value}`)
+            .join('; ');
+    }
+
+
+    _cleanupTextHtml(html) {
+        if (!html) return '';
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+
+        let changesMade;
+        let passes = 0;
+        const MAX_PASSES = 10; // Failsafe against infinite loops
+
+        do {
+            changesMade = false;
+            
+            // Pass 1: Flatten nested spans. Merge styles from inner to outer.
+            tempDiv.querySelectorAll('span[style]').forEach(outerSpan => {
+                const childNodes = Array.from(outerSpan.childNodes).filter(n =>
+                    !(n.nodeType === Node.TEXT_NODE && !n.textContent.trim())
+                );
+
+                if (childNodes.length === 1 && childNodes[0].nodeName === 'SPAN' && childNodes[0].hasAttribute('style')) {
+                    const innerSpan = childNodes[0];
+                    
+                    const outerStyles = this._cssTextToObject(outerSpan.style.cssText);
+                    const innerStyles = this._cssTextToObject(innerSpan.style.cssText);
+                    const newStyles = { ...outerStyles, ...innerStyles };
+                    
+                    outerSpan.style.cssText = this._objectToCssText(newStyles);
+                    
+                    while (innerSpan.firstChild) {
+                        outerSpan.appendChild(innerSpan.firstChild);
+                    }
+                    outerSpan.removeChild(innerSpan);
+                    changesMade = true;
+                }
+            });
+
+            // Pass 2: Merge adjacent spans with identical styles
+            let currentNode = tempDiv.firstChild;
+            while (currentNode && currentNode.nextSibling) {
+                const nextNode = currentNode.nextSibling;
+                if (
+                    currentNode.nodeType === Node.ELEMENT_NODE && currentNode.nodeName === 'SPAN' &&
+                    nextNode.nodeType === Node.ELEMENT_NODE && nextNode.nodeName === 'SPAN' &&
+                    currentNode.style.cssText === nextNode.style.cssText
+                ) {
+                    while (nextNode.firstChild) {
+                        currentNode.appendChild(nextNode.firstChild);
+                    }
+                    tempDiv.removeChild(nextNode);
+                    changesMade = true;
+                    // Do not advance currentNode, check again with the new nextSibling
+                } else {
+                    currentNode = nextNode;
+                }
+            }
+            
+            // Pass 3: Remove empty nodes and normalize
+            tempDiv.querySelectorAll('span:empty').forEach(el => {
+                el.remove();
+                changesMade = true;
+            });
+            tempDiv.normalize();
+            
+            passes++;
+        } while (changesMade && passes < MAX_PASSES);
+        
+        return tempDiv.innerHTML;
     }
 
     // --- Element Actions ---
