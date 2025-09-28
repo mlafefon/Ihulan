@@ -1,5 +1,6 @@
 
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -98,6 +99,9 @@ class MagazineEditor {
             isDirty: false,
         };
         this.interactionState = {}; // For drag/resize/rotate/color-picking
+        this.interactionState.isTypingFontSize = false;
+        this.interactionState.isTypingLetterSpacing = false;
+        this.interactionState.isTypingLineHeight = false;
         this.templates = [];
         this.isLayerMenuOpen = false;
         this.snapLines = []; // For snapping guides
@@ -201,6 +205,7 @@ class MagazineEditor {
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
         this.dom.sidebar.addEventListener('mousedown', this._handleSidebarMouseDown.bind(this));
+        this.dom.sidebar.addEventListener('keydown', this._handleSidebarKeyDown.bind(this));
         
         // Add generic accordion handler for both sidebars
         [this.dom.sidebar, this.imageEditor.dom.modal].forEach(container => {
@@ -262,6 +267,26 @@ class MagazineEditor {
             this.isInteractingWithNativeColorPicker = true;
             // When opening the native picker, we don't have the final color yet.
             // We'll reset this flag on the 'change' event of the picker.
+        }
+    }
+
+    _handleSidebarKeyDown(e) {
+        const { target } = e;
+        const prop = target.dataset.property;
+        const richTextPropsWithManualInput = ['fontSize', 'letterSpacing', 'lineHeight'];
+        
+        if (richTextPropsWithManualInput.includes(prop)) {
+            // Generate dynamic property name for interactionState e.g., 'isTypingFontSize'
+            const typingFlag = `isTyping${prop.charAt(0).toUpperCase() + prop.slice(1)}`;
+    
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.interactionState[typingFlag] = false; // Reset flag before blur
+                target.blur(); // Triggers 'change' event
+            } else if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+                // Any other key that isn't an arrow key is considered "typing"
+                this.interactionState[typingFlag] = true;
+            }
         }
     }
 
@@ -811,6 +836,21 @@ class MagazineEditor {
             };
             
             if (selectedEl.type === 'text' && this.state.inlineEditingElementId === selectedEl.id && styleProps[prop]) {
+                // --- NEW LOGIC START ---
+                const richTextPropsWithManualInput = ['fontSize', 'letterSpacing', 'lineHeight'];
+                if (richTextPropsWithManualInput.includes(prop)) {
+                    const typingFlag = `isTyping${prop.charAt(0).toUpperCase() + prop.slice(1)}`;
+                    if (e.type === 'input' && this.interactionState[typingFlag]) {
+                        // User is typing manually, so we wait for the 'change' event (on Enter/blur).
+                        return;
+                    }
+                    if (e.type === 'change') {
+                        // On commit (blur/enter), reset the typing flag.
+                        this.interactionState[typingFlag] = false;
+                    }
+                }
+                // --- NEW LOGIC END ---
+
                 const styleObject = styleProps[prop](value);
                 const wasApplied = this._applyStyleToSelection(styleObject);
                 
