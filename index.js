@@ -4,6 +4,7 @@ import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
 import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
+import { InteractionManager } from './js/managers/InteractionManager.js';
 
 
 /**
@@ -103,13 +104,11 @@ class MagazineEditor {
         this.interactionState.isTypingLineHeight = false;
         this.templates = [];
         this.isLayerMenuOpen = false;
-        this.snapLines = []; // For snapping guides
         this.savedRange = null; // To preserve text selection
         this.isApplyingStyle = false; // Flag to prevent selection events during style application
 
         // History management
         this.historyRecordingSuspended = false;
-        this.preInteractionState = null;
         this.isInteractingWithNativeColorPicker = false;
         
 
@@ -148,6 +147,7 @@ class MagazineEditor {
         this._cacheDom();
         this.history = new HistoryManager(this);
         this.imageEditor = new ImageEditor(this);
+        this.interactionManager = new InteractionManager(this);
         loadGoogleFonts();
         injectFontStyles();
         
@@ -215,7 +215,7 @@ class MagazineEditor {
         });
         
         this.dom.coverBoundary.addEventListener('click', this._handleCoverClick.bind(this));
-        this.dom.coverBoundary.addEventListener('mousedown', this._handleCoverMouseDown.bind(this));
+        this.dom.coverBoundary.addEventListener('mousedown', this.interactionManager.handleCoverMouseDown.bind(this.interactionManager));
         document.addEventListener('click', this._handleGlobalClick.bind(this));
         
         // History events
@@ -626,22 +626,22 @@ class MagazineEditor {
         }
     }
 
-    renderCover() {
+    renderCover(snapLines = []) {
         this.dom.coverBoundary.innerHTML = '';
         this.dom.coverBoundary.style.backgroundColor = this.state.backgroundColor;
         this.state.elements.forEach((el, index) => {
             const domEl = renderCoverElement(el, this.state, 1, index);
             this.dom.coverBoundary.appendChild(domEl);
         });
-        this._renderSnapGuides();
+        this._renderSnapGuides(snapLines);
     }
     
-    _renderSnapGuides() {
+    _renderSnapGuides(snapLines) {
         // Clear existing guides
         this.dom.coverBoundary.querySelectorAll('.snap-guide').forEach(el => el.remove());
         
         // Render new guides
-        this.snapLines.forEach(line => {
+        snapLines.forEach(line => {
             const guideEl = document.createElement('div');
             guideEl.className = `snap-guide ${line.type}`;
             if (line.type === 'vertical') {
@@ -990,6 +990,15 @@ class MagazineEditor {
         const action = actionTarget.dataset.action;
     
         if (action === 'toggle-layer-menu') {
+            // Close any open accordion panel before toggling the layer menu.
+            const openPanel = this.dom.sidebarContent.querySelector('.accordion-panel.open');
+            if (openPanel) {
+                const toggleBtn = openPanel.previousElementSibling;
+                if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
+                    // This will toggle it to the closed state as it is currently open.
+                    this._toggleAccordionPanel(toggleBtn);
+                }
+            }
             this._toggleLayerMenu();
             return;
         }
@@ -1255,226 +1264,6 @@ class MagazineEditor {
 
         textContainer.addEventListener('focusout', onFocusOut);
         textContainer.addEventListener('keydown', onKeyDown);
-    }
-
-    _handleCoverMouseDown(e) {
-        if (e.target.closest('[contenteditable="true"]')) {
-            // When clicking inside an already-editable text, clear the selection overlay
-            setTimeout(() => {
-                if(window.getSelection().isCollapsed) this._clearCustomSelection();
-            }, 0);
-            return;
-        }
-        const draggableEl = e.target.closest('.draggable');
-        if (!draggableEl) return;
-
-        this.preInteractionState = this._getStateSnapshot();
-
-        const elementId = draggableEl.dataset.id;
-        const elementData = this.state.elements.find(el => el.id === elementId);
-        if (!elementData) return;
-
-        const action = e.target.dataset.action || 'drag';
-
-        // Prevent dragging from the text element's inner area. Dragging should only be possible
-        // from the resize/rotate handles or the external drag handle (::before pseudo-element).
-        if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-container"]')) {
-            return;
-        }
-        
-        const oldSelectedId = this.state.selectedElementId;
-        if (oldSelectedId !== elementId) {
-            if (oldSelectedId) {
-                const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
-                if (oldElement && oldElement.type === 'clipping-shape') {
-                    this.state.elements = this.state.elements.filter(el => el.id !== oldSelectedId);
-                }
-            }
-            
-            this.state.selectedElementId = elementId;
-            if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
-                 this.state.inlineEditingElementId = null;
-                 this._clearCustomSelection();
-            }
-            this.render();
-        }
-        
-        e.preventDefault();
-        e.stopPropagation();
-
-        const coverRect = this.dom.coverBoundary.getBoundingClientRect();
-        this.interactionState = {
-            element: elementData,
-            action,
-            startX: e.clientX, startY: e.clientY,
-            coverRect,
-            initial: {
-                x: elementData.position.x, y: elementData.position.y,
-                width: elementData.width || draggableEl.offsetWidth,
-                height: elementData.height || draggableEl.offsetHeight,
-                rotation: elementData.rotation,
-            },
-            moved: false
-        };
-
-        if (action === 'rotate') {
-             const elRect = draggableEl.getBoundingClientRect();
-             this.interactionState.initial.centerX = elRect.left - coverRect.left + elRect.width / 2;
-             this.interactionState.initial.centerY = elRect.top - coverRect.top + elRect.height / 2;
-        } else if (action === 'resize') {
-            this.interactionState.direction = e.target.dataset.direction;
-        }
-
-        const onMove = this._handleInteractionMove.bind(this);
-        const onEnd = () => {
-            this._handleInteractionEnd();
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onEnd);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onEnd);
-    }
-
-    _handleInteractionMove(e) {
-        if (!this.interactionState.action) return;
-        this.interactionState.moved = true;
-    
-        this.snapLines = []; // Clear previous snap lines
-        
-        const actions = {
-            'drag': this._performDragWithSnapping,
-            'rotate': this._performRotate,
-            'resize': this._performResizeWithSnapping,
-        };
-        actions[this.interactionState.action].call(this, e);
-        
-        this.renderCover();
-    
-        if (this.interactionState.action === 'resize' && (this.interactionState.element.type === 'image' || this.interactionState.element.type === 'clipping-shape' || (this.interactionState.element.type === 'text' && this.interactionState.element.multiLine))) {
-            const el = this.interactionState.element;
-            const widthInput = this.dom.sidebarContent.querySelector('[data-property="width"]');
-            const heightInput = this.dom.sidebarContent.querySelector('[data-property="height"]');
-            if (widthInput) widthInput.value = Math.round(el.width);
-            if (heightInput) heightInput.value = Math.round(el.height);
-        }
-    }
-    
-    _performDragWithSnapping(e) {
-        const { element, startX, startY, initial } = this.interactionState;
-        const SNAP_THRESHOLD = 8;
-        const { coverWidth, coverHeight } = this.state;
-    
-        let newX = initial.x + (e.clientX - startX);
-        let newY = initial.y + (e.clientY - startY);
-    
-        const elWidth = element.width || this.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetWidth;
-        const elHeight = element.height || this.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetHeight;
-    
-        const elPoints = {
-            v: [newX, newX + elWidth / 2, newX + elWidth],
-            h: [newY, newY + elHeight / 2, newY + elHeight]
-        };
-        const guides = {
-            v: [0, coverWidth / 2, coverWidth],
-            h: [0, coverHeight / 2, coverHeight]
-        };
-    
-        let snappedV = false, snappedH = false;
-    
-        for (const guide of guides.v) {
-            for (const [i, point] of elPoints.v.entries()) {
-                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
-                    newX += guide - point;
-                    this.snapLines.push({ type: 'vertical', position: guide });
-                    snappedV = true;
-                    break;
-                }
-            }
-            if (snappedV) break;
-        }
-    
-        for (const guide of guides.h) {
-            for (const [i, point] of elPoints.h.entries()) {
-                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
-                    newY += guide - point;
-                    this.snapLines.push({ type: 'horizontal', position: guide });
-                    snappedH = true;
-                    break;
-                }
-            }
-            if (snappedH) break;
-        }
-    
-        element.position.x = newX;
-        element.position.y = newY;
-    }
-    
-    
-    _performRotate(e) {
-        const { element, coverRect, initial } = this.interactionState;
-        const angleRad = Math.atan2(e.clientY - coverRect.top - initial.centerY, e.clientX - coverRect.left - initial.centerX);
-        element.rotation = Math.round((angleRad * 180 / Math.PI + 90) / 5) * 5;
-    }
-    
-    _performResizeWithSnapping(e) {
-        const { element, startX, startY, initial, direction } = this.interactionState;
-        const SNAP_THRESHOLD = 8;
-        const { coverWidth, coverHeight } = this.state;
-        
-        let { x, y, width, height } = initial;
-        let dx = e.clientX - startX;
-        let dy = e.clientY - startY;
-
-        let newX = x, newY = y, newWidth = width, newHeight = height;
-
-        if (direction.includes('e')) newWidth = Math.max(20, width + dx);
-        if (direction.includes('w')) { newWidth = Math.max(20, width - dx); newX = x + dx; }
-        if (direction.includes('s')) newHeight = Math.max(20, height + dy);
-        if (direction.includes('n')) { newHeight = Math.max(20, height - dy); newY = y + dy; }
-        
-        const guides = { v: [0, coverWidth / 2, coverWidth], h: [0, coverHeight / 2, coverHeight] };
-        
-        // Vertical snapping
-        const rightEdge = newX + newWidth;
-        for (const guide of guides.v) {
-            if (direction.includes('w') && Math.abs(newX - guide) < SNAP_THRESHOLD) {
-                const diff = guide - newX; newX = guide; newWidth -= diff;
-                this.snapLines.push({ type: 'vertical', position: guide }); break;
-            }
-            if (direction.includes('e') && Math.abs(rightEdge - guide) < SNAP_THRESHOLD) {
-                newWidth = guide - newX;
-                this.snapLines.push({ type: 'vertical', position: guide }); break;
-            }
-        }
-        
-        // Horizontal snapping
-        const bottomEdge = newY + newHeight;
-        for (const guide of guides.h) {
-            if (direction.includes('n') && Math.abs(newY - guide) < SNAP_THRESHOLD) {
-                const diff = guide - newY; newY = guide; newHeight -= diff;
-                this.snapLines.push({ type: 'horizontal', position: guide }); break;
-            }
-            if (direction.includes('s') && Math.abs(bottomEdge - guide) < SNAP_THRESHOLD) {
-                newHeight = guide - newX;
-                this.snapLines.push({ type: 'horizontal', position: guide }); break;
-            }
-        }
-
-        element.position = { x: newX, y: newY };
-        element.width = newWidth;
-        element.height = newHeight;
-    }
-
-    _handleInteractionEnd() {
-        if (this.interactionState.moved) {
-            this.history.addState(this.preInteractionState);
-            this._setDirty(true);
-        }
-        this.preInteractionState = null;
-        this.interactionState = {};
-        this.snapLines = []; // Clear snap lines on mouse up
-        this.renderCover(); // Re-render to remove guides
-        this._renderSidebarAndPreserveAccordion();
     }
 
     _rgbToHex(rgb) {
