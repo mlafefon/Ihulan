@@ -96,7 +96,7 @@ class MagazineEditor {
             templateName: '',
             isDirty: false,
         };
-        this.interactionState = {}; // For drag/resize/rotate
+        this.interactionState = {}; // For drag/resize/rotate/color-picking
         this.templates = [];
         this.isLayerMenuOpen = false;
         this.snapLines = []; // For snapping guides
@@ -106,6 +106,7 @@ class MagazineEditor {
         // History management
         this.historyRecordingSuspended = false;
         this.preInteractionState = null;
+        this.isInteractingWithNativeColorPicker = false;
         
 
         this._init();
@@ -198,6 +199,7 @@ class MagazineEditor {
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
+        this.dom.sidebar.addEventListener('mousedown', this._handleSidebarMouseDown.bind(this));
         
         // Add generic accordion handler for both sidebars
         [this.dom.sidebar, this.imageEditor.dom.modal].forEach(container => {
@@ -254,6 +256,14 @@ class MagazineEditor {
         toggleBtn.querySelector('.accordion-chevron')?.classList.toggle('rotate-180', shouldOpen);
     }
 
+    _handleSidebarMouseDown(e) {
+        if (e.target.matches('.native-color-picker')) {
+            this.isInteractingWithNativeColorPicker = true;
+            // When opening the native picker, we don't have the final color yet.
+            // We'll reset this flag on the 'change' event of the picker.
+        }
+    }
+
     _handleGlobalClick(e) {
         if (this.isLayerMenuOpen) {
             const toggleButton = this.dom.sidebar.querySelector('[data-action="toggle-layer-menu"]');
@@ -262,15 +272,21 @@ class MagazineEditor {
                 this._toggleLayerMenu(false);
             }
         }
-        
+    
+        // If the native color picker is open, don't close the popover.
+        if (this.isInteractingWithNativeColorPicker) {
+            return;
+        }
+    
+        // Find any open color popover and simulate a click on its "Cancel" button.
         this.dom.sidebar.querySelectorAll('.custom-color-picker').forEach(picker => {
             const isClickInsidePicker = picker.contains(e.target);
-            const isClickOnNativePickerInterface = e.target.closest('.custom-color-input-wrapper');
             
-            if (!isClickInsidePicker && !isClickOnNativePickerInterface) {
-                 const btn = picker.querySelector('.color-display-btn');
+            if (!isClickInsidePicker) {
+                const btn = picker.querySelector('.color-display-btn');
                 if (btn.getAttribute('aria-expanded') === 'true') {
-                    this._toggleColorPopover(btn, true);
+                    const cancelButton = picker.querySelector('[data-action="cancel-color"]');
+                    if (cancelButton) cancelButton.click();
                 }
             }
         });
@@ -290,21 +306,37 @@ class MagazineEditor {
     _toggleColorPopover(btn, forceClose = false) {
         const popover = btn.nextElementSibling;
         if (!popover) return;
+        const picker = btn.closest('.custom-color-picker');
         const isOpening = popover.classList.contains('hidden');
 
-        // Close all other popovers first
+        // Close all other popovers first (by canceling)
         this.dom.sidebar.querySelectorAll('.color-popover:not(.hidden)').forEach(p => {
             if (p !== popover) {
-                p.classList.add('hidden');
-                p.previousElementSibling.setAttribute('aria-expanded', 'false');
+                const cancelButton = p.querySelector('[data-action="cancel-color"]');
+                if (cancelButton) cancelButton.click();
             }
         });
 
         if (forceClose) {
             popover.classList.add('hidden');
             btn.setAttribute('aria-expanded', 'false');
+            // Clean up interaction state on close
+            delete this.interactionState.colorPickerOriginalValue;
+            delete this.interactionState.colorPickerProperty;
+            delete this.interactionState.preColorPickerState;
+
         } else {
             const shouldBeOpen = isOpening;
+            if (shouldBeOpen) {
+                // Store original color on open
+                const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+                const prop = picker.dataset.property;
+                if(selectedEl && prop) {
+                    this.interactionState.colorPickerOriginalValue = selectedEl[prop];
+                    this.interactionState.colorPickerProperty = prop;
+                    this.interactionState.preColorPickerState = this._getStateSnapshot();
+                }
+            }
             popover.classList.toggle('hidden', !shouldBeOpen);
             btn.setAttribute('aria-expanded', shouldBeOpen);
         }
@@ -658,23 +690,15 @@ class MagazineEditor {
         if (!picker) return;
         
         const prop = picker.dataset.property;
-        const preEditState = this._getStateSnapshot();
-        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
+        // Live preview for selected text or whole element. No history yet.
         const wasAppliedToSelection = this._applyStyleToSelection({ [prop]: color });
-        
-        if (wasAppliedToSelection) {
-            // Update state without a full re-render
-            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-            if (selectedEl && textContainer) {
-                selectedEl.text = textContainer.innerHTML;
-                this._setDirty(true);
+        if (!wasAppliedToSelection) {
+            const el = this.state.elements.find(e => e.id === this.state.selectedElementId);
+            if(el) {
+                el[prop] = color;
+                this.renderCover();
             }
-            this.history.addState(preEditState);
-        } else {
-            // Apply to whole element
-            this.updateSelectedElement({ [prop]: color });
-            this.history.addState(preEditState);
         }
 
         // Update color picker UI
@@ -692,44 +716,68 @@ class MagazineEditor {
             nativePicker.value = color;
         }
         
-        this._renderSidebarAndPreserveAccordion(); // Re-render to show/hide opacity slider
-        
-        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+        // Re-render to show/hide opacity slider, but only if the popover is NOT being closed
+        this._renderSidebarAndPreserveAccordion();
     }
 
-    _handleNativeColorChange(input, e) {
+    _handleNativeColorChange(input) {
         const color = input.value;
         const picker = input.closest('.custom-color-picker');
         if (!picker) return;
     
         const prop = picker.dataset.property;
-        const preEditState = this._getStateSnapshot();
-        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
 
+        // Live preview
         const wasApplied = this._applyStyleToSelection({ [prop]: color });
-
-        if (wasApplied) {
-            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-             if (selectedEl && textContainer) {
-                selectedEl.text = textContainer.innerHTML;
-                this._setDirty(true);
+        if (!wasApplied) {
+             const el = this.state.elements.find(e => e.id === this.state.selectedElementId);
+            if(el) {
+                el[prop] = color;
+                this.renderCover();
             }
-        } else {
-            this.updateSelectedElement({ [prop]: color });
         }
     
+        // Update picker UI
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
         if (displaySwatch) {
             displaySwatch.classList.remove('is-transparent-swatch');
             displaySwatch.style.backgroundColor = color;
         }
+    }
     
-        if (e.type === 'change') {
-            this.history.addState(preEditState);
-            this._renderSidebarAndPreserveAccordion();
-            this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+    _confirmColorSelection(btn) {
+        const picker = btn.closest('.custom-color-picker');
+        if (!picker) return;
+        const { preColorPickerState, colorPickerProperty: prop } = this.interactionState;
+
+        const newValue = picker.dataset.value;
+        const originalValue = preColorPickerState.elements.find(el => el.id === this.state.selectedElementId)[prop];
+
+        if (newValue !== originalValue) {
+             // Update the text property if it was a selection-based change
+            const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+            if (selectedEl && textContainer) {
+                selectedEl.text = textContainer.innerHTML;
+            }
+            this.history.addState(preColorPickerState);
+            this._setDirty(true);
         }
+        
+        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+    }
+    
+    _cancelColorSelection(btn) {
+        const picker = btn.closest('.custom-color-picker');
+        if (!picker) return;
+        const { colorPickerOriginalValue: originalValue, colorPickerProperty: prop } = this.interactionState;
+        
+        // Revert to original color, even for text selection. It's simpler to revert the whole element.
+        this.updateSelectedElement({ [prop]: originalValue });
+
+        this._toggleColorPopover(picker.querySelector('.color-display-btn'), true);
+        this._renderSidebarAndPreserveAccordion();
     }
 
     _handleSidebarInput(e) {
@@ -738,7 +786,11 @@ class MagazineEditor {
         const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         
         if (target.matches('.native-color-picker')) {
-            this._handleNativeColorChange(target, e);
+            this._handleNativeColorChange(target);
+            // On 'change' event (user closes native picker), reset the flag
+            if(e.type === 'change') {
+                this.isInteractingWithNativeColorPicker = false;
+            }
             return;
         }
         
@@ -894,6 +946,15 @@ class MagazineEditor {
             this._toggleLayerMenu();
             return;
         }
+        
+        if (action === 'confirm-color') {
+            this._confirmColorSelection(actionTarget);
+            return;
+        }
+        if (action === 'cancel-color') {
+            this._cancelColorSelection(actionTarget);
+            return;
+        }
 
         const recordableActions = ['bring-to-front', 'send-to-back', 'layer-up', 'layer-down', 'align-text', 'align-vertical-text', 'toggle-property'];
         const preEditState = this._getStateSnapshot();
@@ -920,11 +981,47 @@ class MagazineEditor {
             'layer-down': () => this._reorderElement('down'),
             'align-text': () => {
                 const align = actionTarget.dataset.align;
-                this.updateSelectedElement({ textAlign: align });
+                if (!selectedEl) return;
+                
+                selectedEl.textAlign = align;
+                this._setDirty(true);
+            
+                if (this.state.inlineEditingElementId === selectedEl.id) {
+                    const textWrapper = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"] [data-role="text-content"]`);
+                    if (textWrapper) {
+                        textWrapper.style.textAlign = align;
+                        setTimeout(() => {
+                            if (this.state.inlineEditingElementId === selectedEl.id) {
+                                this._drawCustomSelectionOverlay();
+                            }
+                        }, 10);
+                    }
+                } else {
+                    this.renderCover();
+                }
             },
             'align-vertical-text': () => {
                 const align = actionTarget.dataset.align;
-                this.updateSelectedElement({ verticalAlign: align });
+                if (!selectedEl) return;
+
+                selectedEl.verticalAlign = align;
+                this._setDirty(true);
+                
+                if (this.state.inlineEditingElementId === selectedEl.id) {
+                    const draggableEl = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"]`);
+                    if (draggableEl && draggableEl.firstChild) {
+                        const backgroundElement = draggableEl.firstChild;
+                        const verticalAlignMap = { start: 'flex-start', center: 'center', end: 'flex-end' };
+                        backgroundElement.style.justifyContent = verticalAlignMap[align] || 'center';
+                        setTimeout(() => {
+                            if (this.state.inlineEditingElementId === selectedEl.id) {
+                                this._drawCustomSelectionOverlay();
+                            }
+                        }, 10);
+                    }
+                } else {
+                    this.renderCover();
+                }
             },
             'toggle-property': () => {
                 const prop = actionTarget.dataset.property;
