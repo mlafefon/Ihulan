@@ -343,6 +343,7 @@ const _createTransformHandles = () => {
 
 const _applyTextStyles = (domEl, el, scale) => {
     const backgroundElement = document.createElement('div');
+    backgroundElement.dataset.role = 'text-container';
     const bgColorWithOpacity = _hexToRgba(el.bgColor, el.bgColorOpacity ?? 1);
 
     const verticalAlignMap = { start: 'flex-start', center: 'center', end: 'flex-end' };

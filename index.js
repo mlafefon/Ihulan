@@ -1,6 +1,5 @@
 
 
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -1277,8 +1276,9 @@ class MagazineEditor {
 
         const action = e.target.dataset.action || 'drag';
 
-        // Prevent dragging from the text content itself.
-        if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-content"]')) {
+        // Prevent dragging from the text element's inner area. Dragging should only be possible
+        // from the resize/rotate handles or the external drag handle (::before pseudo-element).
+        if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-container"]')) {
             return;
         }
         

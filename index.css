@@ -1,3 +1,5 @@
+
+
 *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 html { line-height: 1.5; -webkit-text-size-adjust: 100%; -moz-tab-size: 4; tab-size: 4; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
 body { margin: 0; line-height: inherit; font-family: 'Heebo', sans-serif; }
@@ -8,13 +10,27 @@ button { text-transform: none; background-color: transparent; background-image: 
 .draggable { position: absolute; user-select: none; cursor: pointer; }
 .selected { outline: 2px solid #38bdf8; }
 
-.draggable.element-type-text,
+/* For text elements, default to a text cursor for intuitive editing. Dragging is done via the border handle. */
+.draggable.element-type-text {
+  cursor: text;
+}
 .draggable.element-type-image {
   cursor: move;
 }
 
-/* Invisible ::before pseudo-element to act as a larger, external drag handle */
-.selected::before {
+/* Invisible ::before pseudo-element to act as an external drag handle. */
+/* It's smaller for text elements to make direct text selection easier. */
+.selected.element-type-text::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  cursor: move;
+}
+
+.selected:not(.element-type-text)::before {
   content: '';
   position: absolute;
   top: -8px;
@@ -43,11 +59,6 @@ button { text-transform: none; background-color: transparent; background-image: 
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
     pointer-events: none;
     user-select: none;
-}
-
-/* Change cursor to text-edit icon and ensure text is interactive */
-.draggable [data-role="text-content"] {
-  cursor: text;
 }
 
 /* Add a subtle dotted outline on hover for non-selected elements */
@@ -116,7 +127,6 @@ button { text-transform: none; background-color: transparent; background-image: 
 }
 [contenteditable] {
   outline: 0px solid;
-  cursor: text;
   caret-color: #38bdf8;
 }
 
