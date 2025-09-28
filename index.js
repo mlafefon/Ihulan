@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -819,6 +820,13 @@ class MagazineEditor {
                     const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"] [data-role="text-content"]`);
                     selectedEl.text = textContainer.innerHTML;
                     this._setDirty(true);
+                    
+                    // Update the selection overlay after style change
+                    setTimeout(() => {
+                        if (this.state.inlineEditingElementId === selectedEl.id) {
+                            this._drawCustomSelectionOverlay();
+                        }
+                    }, 10);
                     return; // Stop further processing
                 }
             }
