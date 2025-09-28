@@ -1,4 +1,3 @@
-
 *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 html { line-height: 1.5; -webkit-text-size-adjust: 100%; -moz-tab-size: 4; tab-size: 4; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
 body { margin: 0; line-height: inherit; font-family: 'Heebo', sans-serif; }
@@ -49,12 +48,21 @@ button { text-transform: none; background-color: transparent; background-image: 
 /* Change cursor to text-edit icon and ensure text is interactive */
 .draggable [data-role="text-content"] {
   cursor: text;
-  position: relative;
 }
 
 /* Add a subtle dotted outline on hover for non-selected elements */
 .draggable:not(.selected):hover {
   outline: 2px dotted #94a3b8; /* slate-400 */
+}
+
+.selection-overlay {
+    position: absolute;
+    background-color: rgba(100, 116, 139, 0.5); /* slate-500 with opacity */
+}
+
+/* Hide native selection when custom selection is active */
+.has-custom-selection [data-role="text-content"]::selection {
+    background-color: transparent;
 }
 
 .resize-handle, .rotation-handle {

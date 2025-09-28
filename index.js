@@ -1,5 +1,4 @@
 
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -102,6 +101,7 @@ class MagazineEditor {
         this.isLayerMenuOpen = false;
         this.snapLines = []; // For snapping guides
         this.savedRange = null; // To preserve text selection
+        this.isApplyingStyle = false; // Flag to prevent selection events during style application
 
         // History management
         this.historyRecordingSuspended = false;
@@ -225,7 +225,7 @@ class MagazineEditor {
             }
         });
 
-        document.addEventListener('selectionchange', this._updateSidebarForSelection.bind(this));
+        document.addEventListener('selectionchange', this._handleSelectionChange.bind(this));
     }
 
     _toggleAccordionPanel(toggleBtn) {
@@ -638,6 +638,7 @@ class MagazineEditor {
     }
     
     _deselectAndCleanup() {
+        this._clearCustomSelection();
         const oldSelectedId = this.state.selectedElementId;
         if (oldSelectedId) {
             const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
@@ -657,20 +658,26 @@ class MagazineEditor {
         if (!picker) return;
         
         const prop = picker.dataset.property;
-        
         const preEditState = this._getStateSnapshot();
+        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        
         const wasAppliedToSelection = this._applyStyleToSelection({ [prop]: color });
-
         
         if (wasAppliedToSelection) {
-            this.history.addState(preEditState);
+            // Update state without a full re-render
             const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-            this.updateSelectedElement({ text: textContainer.innerHTML });
+            if (selectedEl && textContainer) {
+                selectedEl.text = textContainer.innerHTML;
+                this._setDirty(true);
+            }
+            this.history.addState(preEditState);
         } else {
+            // Apply to whole element
             this.updateSelectedElement({ [prop]: color });
             this.history.addState(preEditState);
         }
 
+        // Update color picker UI
         picker.dataset.value = color;
         const displaySwatch = picker.querySelector('.color-swatch-display');
         const nativePicker = picker.querySelector('.native-color-picker');
@@ -697,14 +704,18 @@ class MagazineEditor {
     
         const prop = picker.dataset.property;
         const preEditState = this._getStateSnapshot();
+        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
 
         const wasApplied = this._applyStyleToSelection({ [prop]: color });
 
-        if (!wasApplied) {
-            this.updateSelectedElement({ [prop]: color });
-        } else {
+        if (wasApplied) {
             const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-            this.updateSelectedElement({ text: textContainer.innerHTML });
+             if (selectedEl && textContainer) {
+                selectedEl.text = textContainer.innerHTML;
+                this._setDirty(true);
+            }
+        } else {
+            this.updateSelectedElement({ [prop]: color });
         }
     
         picker.dataset.value = color;
@@ -748,11 +759,11 @@ class MagazineEditor {
             
             if (selectedEl.type === 'text' && this.state.inlineEditingElementId === selectedEl.id && styleProps[prop]) {
                 const styleObject = styleProps[prop](value);
-                if (this._applyStyleToSelection(styleObject)) {
-                    // Only record history on 'change' to avoid flooding it with 'input' events from sliders
-                    if (e.type === 'change') {
-                        this.history.addState(preEditState);
-                    }
+                const wasApplied = this._applyStyleToSelection(styleObject);
+                
+                if (wasApplied) {
+                    if (e.type === 'change') this.history.addState(preEditState);
+
                     const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"] [data-role="text-content"]`);
                     selectedEl.text = textContainer.innerHTML;
                     this._setDirty(true);
@@ -796,54 +807,65 @@ class MagazineEditor {
         const selection = window.getSelection();
         let range;
     
-        if (this.savedRange) {
-            range = this.savedRange;
-        } else if (selection.rangeCount > 0 && !selection.isCollapsed) {
-            range = selection.getRangeAt(0);
-        } else {
-            return false;
-        }
-    
         const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
-        if (!editorEl || !editorEl.contains(range.commonAncestorContainer)) {
-            this.savedRange = null;
-            return false;
-        }
+        if (!editorEl) return false;
+        
+        const hasSelection = this.savedRange || (selection.rangeCount > 0 && !selection.isCollapsed);
     
-        selection.removeAllRanges();
-        selection.addRange(range);
-    
+        this.isApplyingStyle = true;
         try {
-            // New logic: Check if the selection is already fully inside a single span.
-            const contents = range.cloneContents();
-            const meaningfulNodes = Array.from(contents.childNodes).filter(n =>
-                !(n.nodeType === Node.TEXT_NODE && n.textContent.trim() === '')
-            );
+            if (hasSelection) {
+                // When there IS a selection
+                range = this.savedRange ? this.savedRange : selection.getRangeAt(0);
+            
+                if (!editorEl.contains(range.commonAncestorContainer)) {
+                    this.savedRange = null; return false;
+                }
     
-            if (meaningfulNodes.length === 1 && meaningfulNodes[0].nodeType === Node.ELEMENT_NODE && meaningfulNodes[0].tagName === 'SPAN') {
-                // If so, modify that span instead of creating a new one.
-                const extractedSpan = range.extractContents().firstChild;
-                Object.assign(extractedSpan.style, style);
-                range.insertNode(extractedSpan);
-                range.selectNodeContents(extractedSpan);
+                selection.removeAllRanges(); selection.addRange(range);
+            
+                const contents = range.cloneContents();
+                const meaningfulNodes = Array.from(contents.childNodes).filter(n => !(n.nodeType === Node.TEXT_NODE && n.textContent.trim() === ''));
+        
+                if (meaningfulNodes.length === 1 && meaningfulNodes[0].nodeType === Node.ELEMENT_NODE && meaningfulNodes[0].tagName === 'SPAN') {
+                    const extractedSpan = range.extractContents().firstChild;
+                    Object.assign(extractedSpan.style, style);
+                    range.insertNode(extractedSpan);
+                    range.selectNodeContents(extractedSpan);
+                } else {
+                    const span = document.createElement('span');
+                    Object.assign(span.style, style);
+                    const extractedContents = range.extractContents();
+    
+                    extractedContents.querySelectorAll('span').forEach(innerSpan => Object.assign(innerSpan.style, style));
+        
+                    span.appendChild(extractedContents);
+                    range.insertNode(span);
+                    range.selectNodeContents(span);
+                }
+        
+                selection.removeAllRanges(); selection.addRange(range);
+                this.savedRange = range.cloneRange();
             } else {
-                // Original logic for other cases.
-                const span = document.createElement('span');
-                Object.assign(span.style, style);
-                const extractedContents = range.extractContents();
-                span.appendChild(extractedContents);
-                range.insertNode(span);
-                range.selectNodeContents(span);
+                // When there is NO selection (in inline edit mode)
+                Array.from(editorEl.childNodes).forEach(node => {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const span = document.createElement('span');
+                        Object.assign(span.style, style);
+                        span.textContent = node.textContent;
+                        editorEl.replaceChild(span, node);
+                    } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'SPAN') {
+                        Object.assign(node.style, style);
+                    }
+                });
+                this.savedRange = null;
             }
-    
-            selection.removeAllRanges();
-            selection.addRange(range);
-            this.savedRange = range.cloneRange();
-    
             return true;
         } catch(e) {
-            console.error("Could not apply style to selection:", e);
+            console.error("Could not apply style:", e);
             return false;
+        } finally {
+            this.isApplyingStyle = false;
         }
     }
 
@@ -908,22 +930,15 @@ class MagazineEditor {
                 const prop = actionTarget.dataset.property;
                 if (selectedEl) {
                      if (prop === 'shadow' && selectedEl.type === 'text') {
-                        // Check if text is selected inside the contenteditable element
-                        const selection = window.getSelection();
-                        const hasSelection = this.savedRange || (selection.rangeCount > 0 && !selection.isCollapsed);
-
-                        if (hasSelection) {
-                            // Apply/remove shadow only to selected text
-                            const currentStyle = window.getComputedStyle(selection.getRangeAt(0).commonAncestorContainer.parentElement).textShadow;
-                            const hasShadow = currentStyle && currentStyle !== 'none';
-                            const style = { textShadow: hasShadow ? 'none' : '2px 2px 4px rgba(0,0,0,0.7)' };
-                             if (this._applyStyleToSelection(style)) {
-                                 const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-                                 this.updateSelectedElement({ text: textContainer.innerHTML });
-                             }
+                        const wasApplied = this._applyStyleToSelection({ 
+                            textShadow: selectedEl.shadow ? 'none' : '2px 2px 4px rgba(0,0,0,0.7)' 
+                        });
+                        if (wasApplied) {
+                            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+                            selectedEl.text = textContainer.innerHTML;
+                            this._setDirty(true);
                         } else {
-                            // Apply/remove shadow from the whole element
-                            this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                             this.updateSelectedElement({ [prop]: !selectedEl[prop] });
                         }
                     } else {
                          this.updateSelectedElement({ [prop]: !selectedEl[prop] });
@@ -1070,16 +1085,23 @@ class MagazineEditor {
             
             if (originalText !== newText) {
                 this.history.addState(preEditState);
-                this.updateSelectedElement({ text: newText });
+                
+                const elementToUpdate = this.state.elements.find(el => el.id === elementData.id);
+                if(elementToUpdate) {
+                    elementToUpdate.text = newText;
+                    this._setDirty(true);
+                    this.renderCover();
+                }
             }
             this.state.inlineEditingElementId = null;
-            this.savedRange = null; // Clear saved range
+            this._clearCustomSelection(); // Clear selection overlay and saved range
         };
         
         const onFocusOut = (e) => {
+            // If focus moves to the sidebar, keep the selection active.
             if (this.dom.sidebar.contains(e.relatedTarget)) {
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
+                 const selection = window.getSelection();
+                if (selection && selection.rangeCount > 0) {
                     this.savedRange = selection.getRangeAt(0).cloneRange();
                 }
             } else {
@@ -1092,7 +1114,13 @@ class MagazineEditor {
     }
 
     _handleCoverMouseDown(e) {
-        if (e.target.closest('[contenteditable="true"]')) return;
+        if (e.target.closest('[contenteditable="true"]')) {
+            // When clicking inside an already-editable text, clear the selection overlay
+            setTimeout(() => {
+                if(window.getSelection().isCollapsed) this._clearCustomSelection();
+            }, 0);
+            return;
+        }
         const draggableEl = e.target.closest('.draggable');
         if (!draggableEl) return;
 
@@ -1111,7 +1139,6 @@ class MagazineEditor {
         
         const oldSelectedId = this.state.selectedElementId;
         if (oldSelectedId !== elementId) {
-            // A new element is being selected. Check if the old one was a clipping shape.
             if (oldSelectedId) {
                 const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
                 if (oldElement && oldElement.type === 'clipping-shape') {
@@ -1120,9 +1147,9 @@ class MagazineEditor {
             }
             
             this.state.selectedElementId = elementId;
-            // If selecting a new element, stop inline editing of the previous one
             if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
                  this.state.inlineEditingElementId = null;
+                 this._clearCustomSelection();
             }
             this.render();
         }
@@ -1319,11 +1346,60 @@ class MagazineEditor {
         return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
     }
 
-    _updateSidebarForSelection() {
-        if (!this.state.inlineEditingElementId) return;
-
+    _getEditorElements() {
+        if (!this.state.inlineEditingElementId) return { };
+        const draggableEl = this.dom.coverBoundary.querySelector(`.draggable[data-id="${this.state.inlineEditingElementId}"]`);
+        if (!draggableEl) return { };
+        
+        return {
+            draggableEl,
+            contentEl: draggableEl.querySelector('[data-role="text-content"]'),
+            overlayContainerEl: draggableEl.querySelector('[data-role="selection-overlays"]')
+        };
+    }
+    
+    _clearCustomSelection() {
+        if (this.savedRange) this.savedRange = null;
+        
+        const { draggableEl, overlayContainerEl } = this._getEditorElements();
+        if (draggableEl && overlayContainerEl) {
+            overlayContainerEl.innerHTML = '';
+            draggableEl.classList.remove('has-custom-selection');
+        }
+    }
+    
+    _drawCustomSelectionOverlay() {
+        const { draggableEl, contentEl, overlayContainerEl } = this._getEditorElements();
         const selection = window.getSelection();
-        if (selection.rangeCount === 0) return;
+
+        if (!selection || selection.rangeCount === 0 || !draggableEl || !contentEl || !overlayContainerEl) {
+             this._clearCustomSelection();
+             return;
+        }
+
+        const range = selection.getRangeAt(0);
+        this.savedRange = range.cloneRange();
+        
+        overlayContainerEl.innerHTML = '';
+        draggableEl.classList.add('has-custom-selection');
+
+        const parentRect = overlayContainerEl.getBoundingClientRect();
+        const rects = range.getClientRects();
+
+        for (const rect of rects) {
+            const overlay = document.createElement('div');
+            overlay.className = 'selection-overlay';
+            overlay.style.left = `${rect.left - parentRect.left}px`;
+            overlay.style.top = `${rect.top - parentRect.top}px`;
+            overlay.style.width = `${rect.width}px`;
+            overlay.style.height = `${rect.height}px`;
+            overlayContainerEl.appendChild(overlay);
+        }
+    }
+    
+    _updateSidebarWithSelectionStyles() {
+        const selection = window.getSelection();
+        if (!this.state.inlineEditingElementId || !selection || selection.rangeCount === 0) return;
 
         const range = selection.getRangeAt(0);
         let element = range.startContainer;
@@ -1331,71 +1407,61 @@ class MagazineEditor {
         if (element.nodeType === Node.TEXT_NODE) {
             element = element.parentElement;
         }
-
-        const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
-        if (!editorEl || !editorEl.contains(element)) {
-            return;
-        }
-
+        
         const styles = window.getComputedStyle(element);
         const sidebar = this.dom.sidebarContent;
-        if (!sidebar) return;
-
-        // Font Family
-        const fontFamilySelect = sidebar.querySelector('[data-property="fontFamily"]');
-        if (fontFamilySelect) {
+        
+        if (sidebar.querySelector('[data-property="fontFamily"]')) {
             const fontName = styles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
-            if ([...fontFamilySelect.options].some(o => o.value === fontName)) {
-                fontFamilySelect.value = fontName;
-            }
+            sidebar.querySelector('[data-property="fontFamily"]').value = fontName;
         }
-        
-        // Font Size
-        const fontSizeInput = sidebar.querySelector('[data-property="fontSize"]');
-        if (fontSizeInput) {
-            fontSizeInput.value = parseInt(styles.fontSize, 10);
+        if (sidebar.querySelector('[data-property="fontSize"]')) {
+            sidebar.querySelector('[data-property="fontSize"]').value = parseInt(styles.fontSize, 10);
         }
-        
-        // Font Weight
-        const fontWeightSelect = sidebar.querySelector('[data-property="fontWeight"]');
-        if (fontWeightSelect) {
-            fontWeightSelect.value = styles.fontWeight;
+        if (sidebar.querySelector('[data-property="fontWeight"]')) {
+            sidebar.querySelector('[data-property="fontWeight"]').value = styles.fontWeight;
         }
-
-        // Letter Spacing
-        const letterSpacingInput = sidebar.querySelector('[data-property="letterSpacing"]');
-        if (letterSpacingInput) {
-            letterSpacingInput.value = parseFloat(styles.letterSpacing) || 0;
+        if (sidebar.querySelector('[data-property="letterSpacing"]')) {
+            sidebar.querySelector('[data-property="letterSpacing"]').value = parseFloat(styles.letterSpacing) || 0;
         }
-
-        // Line Height
-        const lineHeightInput = sidebar.querySelector('[data-property="lineHeight"]');
-        if (lineHeightInput) {
-            lineHeightInput.value = parseFloat(styles.lineHeight) || 1.2;
-        }
-
-        // Text Color
         const colorPicker = sidebar.querySelector('[data-property="color"]');
         if (colorPicker) {
             const hexColor = this._rgbToHex(styles.color);
             colorPicker.dataset.value = hexColor;
-            const displaySwatch = colorPicker.querySelector('.color-swatch-display');
-            const nativePicker = colorPicker.querySelector('.native-color-picker');
-            if (displaySwatch) {
-                displaySwatch.style.backgroundColor = hexColor;
-                displaySwatch.classList.remove('is-transparent-swatch');
-            }
-            if (nativePicker) {
-                nativePicker.value = hexColor;
-            }
+            colorPicker.querySelector('.color-swatch-display').style.backgroundColor = hexColor;
+            colorPicker.querySelector('.native-color-picker').value = hexColor;
         }
-        
-        // Shadow Toggle
         const shadowToggle = sidebar.querySelector('[data-action="toggle-property"][data-property="shadow"]');
         if (shadowToggle) {
             const hasShadow = styles.textShadow && styles.textShadow !== 'none';
             shadowToggle.classList.toggle('active', hasShadow);
             shadowToggle.setAttribute('aria-pressed', String(hasShadow));
+        }
+    }
+
+    _handleSelectionChange() {
+        if (this.isApplyingStyle) return;
+
+        const selection = window.getSelection();
+        if (!this.state.inlineEditingElementId) {
+            this._clearCustomSelection();
+            return;
+        }
+
+        const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
+
+        const isSelectionInEditor = editorEl && !selection.isCollapsed && selection.anchorNode && editorEl.contains(selection.anchorNode);
+
+        if (isSelectionInEditor) {
+            this._drawCustomSelectionOverlay();
+            this._updateSidebarWithSelectionStyles();
+        } else {
+            // If selection is collapsed or outside, but focus is on the sidebar, keep the overlay.
+            if (this.dom.sidebar.contains(document.activeElement)) {
+                return;
+            }
+            this._clearCustomSelection();
+            this.renderSidebar(); // Re-render sidebar with whole element styles
         }
     }
 
@@ -1493,6 +1559,7 @@ class MagazineEditor {
     // --- Element Actions ---
 
     _addElement(type) {
+        this._clearCustomSelection();
         const newEl = type === 'text' ? {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
@@ -1515,6 +1582,7 @@ class MagazineEditor {
     }
 
     _renderDeleteConfirmation() {
+        this._clearCustomSelection();
         this.dom.sidebarContent.innerHTML = '';
         const container = document.createElement('div');
         container.className = 'p-4 bg-slate-900 rounded-lg text-center border border-red-500/50';
@@ -1530,6 +1598,7 @@ class MagazineEditor {
     }
 
     _deleteSelectedElement() {
+        this._clearCustomSelection();
         this.state.elements = this.state.elements.filter(el => el.id !== this.state.selectedElementId);
         this.state.selectedElementId = null;
         this._setDirty(true);

@@ -350,7 +350,8 @@ const _applyTextStyles = (domEl, el, scale) => {
         padding: el.padding || '0px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: verticalJustify
+        justifyContent: verticalJustify,
+        position: 'relative' // Needed for overlay container positioning
     });
     
     switch (el.shape) {
@@ -359,18 +360,41 @@ const _applyTextStyles = (domEl, el, scale) => {
         case 'star': backgroundElement.style.clipPath = 'polygon(50% 0%, 59% 21%, 79% 10%, 74% 32%, 98% 35%, 80% 50%, 98% 65%, 74% 68%, 79% 90%, 59% 79%, 50% 100%, 41% 79%, 21% 90%, 26% 68%, 2% 65%, 20% 50%, 2% 35%, 26% 32%, 21% 10%, 41% 21%)'; break;
         default: backgroundElement.style.borderRadius = '0px'; break;
     }
+    
+    const selectionOverlayContainer = document.createElement('div');
+    selectionOverlayContainer.dataset.role = 'selection-overlays';
+    Object.assign(selectionOverlayContainer.style, {
+        position: 'absolute', top: '0', left: '0',
+        width: '100%', height: '100%',
+        pointerEvents: 'none',
+        zIndex: '0'
+    });
+
     const textWrapper = document.createElement('div');
     textWrapper.dataset.role = 'text-content';
     textWrapper.innerHTML = el.text; // Use innerHTML to render styled spans
     const font = FONTS.find(f => f.family === el.fontFamily);
     const fontClassName = font ? font.className : 'font-heebo';
     textWrapper.className = fontClassName;
-    const baseStyles = { color: el.color, fontSize: `${el.fontSize * scale}px`, fontWeight: el.fontWeight, textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', textAlign: el.textAlign || 'center', width: '100%', letterSpacing: `${el.letterSpacing || 0}px`, lineHeight: el.lineHeight || 1.2 };
+    const baseStyles = { 
+        color: el.color, 
+        fontSize: `${el.fontSize * scale}px`, 
+        fontWeight: el.fontWeight, 
+        textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', 
+        textAlign: el.textAlign || 'center', 
+        width: '100%', 
+        letterSpacing: `${el.letterSpacing || 0}px`, 
+        lineHeight: el.lineHeight || 1.2,
+        position: 'relative', // Ensure text is on top of overlay
+        zIndex: '1'
+     };
     if (el.multiLine) {
         Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'pre-wrap', overflow: 'hidden', wordBreak: 'break-word' });
     } else {
         Object.assign(textWrapper.style, baseStyles, { whiteSpace: 'nowrap', overflow: 'hidden' });
     }
+
+    backgroundElement.appendChild(selectionOverlayContainer);
     backgroundElement.appendChild(textWrapper);
     domEl.appendChild(backgroundElement);
 };
@@ -399,6 +423,14 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
         transform: `rotate(${el.rotation}deg)`, zIndex: el.type === 'clipping-shape' ? 999 : zIndex,
     });
     if (el.id === state.selectedElementId && scale === 1) domEl.classList.add('selected');
+    if (el.id === state.inlineEditingElementId) {
+        // This class triggers the CSS to hide the default browser selection.
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) {
+            domEl.classList.add('has-custom-selection');
+        }
+    }
+
     
     if (el.type === 'text') {
         domEl.classList.add('element-type-text');
