@@ -1358,17 +1358,23 @@ class MagazineEditor {
     _updateSidebarWithSelectionStyles() {
         const selection = window.getSelection();
         if (!this.state.inlineEditingElementId || !selection || selection.rangeCount === 0) return;
-
+    
         const range = selection.getRangeAt(0);
         let element = range.startContainer;
-
+    
         if (element.nodeType === Node.TEXT_NODE) {
             element = element.parentElement;
         }
         
+        const contentEl = this._getEditorElements().contentEl;
+        if (!contentEl || (!contentEl.contains(element) && element !== contentEl)) {
+             return;
+        }
+        
         const styles = window.getComputedStyle(element);
         const sidebar = this.dom.sidebarContent;
-        
+        if (!sidebar) return;
+    
         if (sidebar.querySelector('[data-property="fontFamily"]')) {
             const fontName = styles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
             sidebar.querySelector('[data-property="fontFamily"]').value = fontName;
@@ -1381,6 +1387,21 @@ class MagazineEditor {
         }
         if (sidebar.querySelector('[data-property="letterSpacing"]')) {
             sidebar.querySelector('[data-property="letterSpacing"]').value = parseFloat(styles.letterSpacing) || 0;
+        }
+        if (sidebar.querySelector('[data-property="lineHeight"]')) {
+            const lineHeight = styles.lineHeight;
+            if (lineHeight === 'normal') {
+                const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+                sidebar.querySelector('[data-property="lineHeight"]').value = selectedEl.lineHeight || 1.2;
+            } else if (lineHeight.endsWith('px')) {
+                const fontSizePx = parseFloat(styles.fontSize);
+                const lineHeightPx = parseFloat(lineHeight);
+                if (fontSizePx > 0) {
+                    sidebar.querySelector('[data-property="lineHeight"]').value = (lineHeightPx / fontSizePx).toFixed(2);
+                }
+            } else {
+                sidebar.querySelector('[data-property="lineHeight"]').value = parseFloat(lineHeight) || 1.2;
+            }
         }
         const colorPicker = sidebar.querySelector('[data-property="color"]');
         if (colorPicker) {
@@ -1399,7 +1420,7 @@ class MagazineEditor {
 
     _handleSelectionChange() {
         if (this.isApplyingStyle) return;
-
+        
         const selection = window.getSelection();
         if (!this.state.inlineEditingElementId) {
             this._clearCustomSelection();
@@ -1408,18 +1429,21 @@ class MagazineEditor {
 
         const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
 
-        const isSelectionInEditor = editorEl && !selection.isCollapsed && selection.anchorNode && editorEl.contains(selection.anchorNode);
+        const isSelectionInEditor = editorEl && selection.rangeCount > 0 && selection.anchorNode && editorEl.contains(selection.anchorNode);
 
         if (isSelectionInEditor) {
-            this._drawCustomSelectionOverlay();
+            if (!selection.isCollapsed) {
+                this._drawCustomSelectionOverlay();
+            } else {
+                this._clearCustomSelection();
+            }
             this._updateSidebarWithSelectionStyles();
         } else {
-            // If selection is collapsed or outside, but focus is on the sidebar, keep the overlay.
             if (this.dom.sidebar.contains(document.activeElement)) {
                 return;
             }
             this._clearCustomSelection();
-            this.updateSidebarValues(); // Re-render sidebar with whole element styles
+            this.updateSidebarValues();
         }
     }
 
