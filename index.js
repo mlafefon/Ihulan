@@ -281,6 +281,14 @@ class MagazineEditor {
                 e.preventDefault();
                 this.interactionState[typingFlag] = false; // Reset flag before blur
                 target.blur(); // Triggers 'change' event
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.interactionState[typingFlag] = false;
+                const currentValue = parseFloat(target.value) || 0;
+                const step = e.shiftKey ? 10 : 1;
+                const newValue = e.key === 'ArrowUp' ? currentValue + step : Math.max(1, currentValue - step);
+                target.value = newValue;
+                target.dispatchEvent(new Event('change', { bubbles: true }));
             } else if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
                 // Any other key that isn't an arrow key is considered "typing"
                 this.interactionState[typingFlag] = true;
@@ -314,6 +322,15 @@ class MagazineEditor {
                 }
             }
         });
+
+        // Close font size dropdown
+        const openFontSizeDropdown = this.dom.sidebar.querySelector('.font-size-dropdown:not(.hidden)');
+        if (openFontSizeDropdown) {
+            const wrapper = openFontSizeDropdown.closest('.relative');
+            if (wrapper && !wrapper.contains(e.target)) {
+                openFontSizeDropdown.classList.add('hidden');
+            }
+        }
     }
     
     _toggleLayerMenu(forceState) {
@@ -363,6 +380,26 @@ class MagazineEditor {
             }
             popover.classList.toggle('hidden', !shouldBeOpen);
             btn.setAttribute('aria-expanded', shouldBeOpen);
+        }
+    }
+
+    _toggleFontSizeDropdown(btn) {
+        const dropdown = btn.closest('.relative').querySelector('.font-size-dropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('hidden');
+        }
+    }
+
+    _handleFontSizeSelection(item) {
+        const value = item.dataset.value;
+        const dropdown = item.closest('.font-size-dropdown');
+        const input = dropdown.closest('.relative').querySelector('input[data-property="fontSize"]');
+        
+        if (input && dropdown) {
+            input.value = value;
+            const event = new Event('change', { bubbles: true });
+            input.dispatchEvent(event);
+            dropdown.classList.add('hidden');
         }
     }
 
@@ -811,20 +848,29 @@ class MagazineEditor {
         
         if (target.matches('.native-color-picker')) {
             this._handleNativeColorChange(target);
-            // On 'change' event (user closes native picker), reset the flag
-            if(e.type === 'change') {
-                this.isInteractingWithNativeColorPicker = false;
-            }
+            if(e.type === 'change') this.isInteractingWithNativeColorPicker = false;
             return;
         }
         
         if (target.dataset.property && selectedEl) {
-            const preEditState = this._getStateSnapshot();
-
             const prop = target.dataset.property;
+            
+            // Universal check for manual text property typing
+            const richTextPropsWithManualInput = ['fontSize', 'letterSpacing', 'lineHeight'];
+            if (richTextPropsWithManualInput.includes(prop)) {
+                const typingFlag = `isTyping${prop.charAt(0).toUpperCase() + prop.slice(1)}`;
+                if (e.type === 'input' && this.interactionState[typingFlag]) {
+                    return; // Wait for blur/enter
+                }
+                if (e.type === 'change') {
+                    this.interactionState[typingFlag] = false; // Reset on commit
+                }
+            }
+
+            const preEditState = this._getStateSnapshot();
             let value = (target.type === 'number' || target.type === 'range') ? (parseFloat(target.value) || 0) : target.value;
 
-            // Rich text properties
+            // Rich text properties when inline editing
             const styleProps = {
                 fontSize: val => ({ fontSize: `${val}px` }),
                 fontFamily: val => ({ fontFamily: val }),
@@ -834,62 +880,31 @@ class MagazineEditor {
             };
             
             if (selectedEl.type === 'text' && this.state.inlineEditingElementId === selectedEl.id && styleProps[prop]) {
-                // --- NEW LOGIC START ---
-                const richTextPropsWithManualInput = ['fontSize', 'letterSpacing', 'lineHeight'];
-                if (richTextPropsWithManualInput.includes(prop)) {
-                    const typingFlag = `isTyping${prop.charAt(0).toUpperCase() + prop.slice(1)}`;
-                    if (e.type === 'input' && this.interactionState[typingFlag]) {
-                        // User is typing manually, so we wait for the 'change' event (on Enter/blur).
-                        return;
-                    }
-                    if (e.type === 'change') {
-                        // On commit (blur/enter), reset the typing flag.
-                        this.interactionState[typingFlag] = false;
-                    }
-                }
-                // --- NEW LOGIC END ---
-
                 const styleObject = styleProps[prop](value);
                 const wasApplied = this._applyStyleToSelection(styleObject);
                 
                 if (wasApplied) {
                     if (e.type === 'change') this.history.addState(preEditState);
-
                     const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${selectedEl.id}"] [data-role="text-content"]`);
                     selectedEl.text = textContainer.innerHTML;
                     this._setDirty(true);
-                    
-                    // Update the selection overlay after style change
-                    setTimeout(() => {
-                        if (this.state.inlineEditingElementId === selectedEl.id) {
-                            this._drawCustomSelectionOverlay();
-                        }
-                    }, 10);
-                    return; // Stop further processing
+                    setTimeout(() => this._drawCustomSelectionOverlay(), 10);
+                    return;
                 }
             }
         
-            // New logic for proportional font scaling when NOT in inline edit mode.
+            // Proportional font scaling when NOT inline editing
             if (prop === 'fontSize' && selectedEl.type === 'text' && this.state.inlineEditingElementId !== selectedEl.id) {
                 const oldBaseSize = selectedEl.fontSize;
                 const newBaseSize = value;
-
                 if (oldBaseSize && oldBaseSize > 0 && newBaseSize > 0) {
                     const scale = newBaseSize / oldBaseSize;
-                    
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = selectedEl.text;
-
-                    const elementsWithFontSize = Array.from(tempDiv.querySelectorAll('span[style]')).filter(el => el.style.fontSize);
-
-                    elementsWithFontSize.forEach(span => {
+                    tempDiv.querySelectorAll('[style*="font-size"]').forEach(span => {
                         const currentSize = parseFloat(span.style.fontSize);
-                        if (!isNaN(currentSize)) {
-                            const newSize = currentSize * scale;
-                            span.style.fontSize = `${newSize.toFixed(2)}px`;
-                        }
+                        if (!isNaN(currentSize)) span.style.fontSize = `${(currentSize * scale).toFixed(2)}px`;
                     });
-                    
                     selectedEl.text = tempDiv.innerHTML;
                 }
             }
@@ -1024,6 +1039,16 @@ class MagazineEditor {
                 }
             }
             this._toggleLayerMenu();
+            return;
+        }
+
+        if (action === 'toggle-font-size-dropdown') {
+            this._toggleFontSizeDropdown(actionTarget);
+            return;
+        }
+
+        if (action === 'select-font-size') {
+            this._handleFontSizeSelection(actionTarget);
             return;
         }
         

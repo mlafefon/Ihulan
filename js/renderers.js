@@ -90,6 +90,27 @@ const _createColorPicker = (prop, label, value, customClass = '') => {
     </div>`;
 }
 
+const _createFontSizeDropdown = (prop, label, value) => {
+    const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96, 128];
+    const optionsHTML = FONT_SIZES.map(size => 
+        `<button type="button" class="dropdown-item" data-action="select-font-size" data-value="${size}">${size}</button>`
+    ).join('');
+
+    return `
+        <div class="relative w-24">
+            <label class="block text-sm font-medium text-slate-300 mb-1">${label}</label>
+            <div class="font-size-input-wrapper">
+                <input type="number" data-property="${prop}" value="${value}" class="w-full bg-transparent text-white text-center focus:outline-none" min="1">
+                <button type="button" data-action="toggle-font-size-dropdown" class="dropdown-toggle-btn" aria-label="פתח רשימת גדלים">
+                    <svg class="h-4 w-4 text-slate-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="font-size-dropdown hidden">
+                ${optionsHTML}
+            </div>
+        </div>`;
+};
+
 const _createSidebarHeader = (title) => {
     const div = document.createElement('div');
     div.className = "flex justify-between items-center gap-4";
@@ -129,7 +150,7 @@ const _createTextEditorControls = (el) => {
                                 ${fontOptions}
                             </select>
                         </div>
-                        <div class="w-24">${_createSidebarInput('number', 'fontSize', 'גודל', el.fontSize, {min: 1})}</div>
+                        ${_createFontSizeDropdown('fontSize', 'גודל', el.fontSize)}
                     </div>
                     <div class="flex gap-2">
                         <div class="flex-1">${_createSidebarInput('number', 'letterSpacing', 'מרווח אותיות', el.letterSpacing || 0, { step: 0.1 })}</div>
@@ -163,7 +184,7 @@ const _createTextEditorControls = (el) => {
                         </div>
                         <div class="flex-1">
                             <label class="block text-sm font-medium text-slate-300 mb-1">צל</label>
-                            <div class="toggle-controls-group">
+                            <div class="toggle-controls-group h-10">
                                  <button type="button" class="toggle-btn ${el.shadow ? 'active' : ''}" data-action="toggle-property" data-property="shadow" title="הוסף צל" aria-pressed="${!!el.shadow}">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5">
                                         <path d="M12.25 5.25 L10.75 5.25 L6.75 16.25 L8.25 16.25 L9.25 13.25 L13.75 13.25 L14.75 16.25 L16.25 16.25 Z M11.5 7.25 L13.25 12.25 L9.75 12.25 Z" fill="black" transform="translate(1.5, 1.5)"/>
