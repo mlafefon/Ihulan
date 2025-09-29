@@ -1,5 +1,4 @@
 
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
@@ -288,7 +287,7 @@ class MagazineEditor {
             }
         }
     }
-
+    
     _handleGlobalClick(e) {
         if (this.isLayerMenuOpen) {
             const toggleButton = this.dom.sidebar.querySelector('[data-action="toggle-layer-menu"]');
@@ -870,6 +869,31 @@ class MagazineEditor {
                 }
             }
         
+            // New logic for proportional font scaling when NOT in inline edit mode.
+            if (prop === 'fontSize' && selectedEl.type === 'text' && this.state.inlineEditingElementId !== selectedEl.id) {
+                const oldBaseSize = selectedEl.fontSize;
+                const newBaseSize = value;
+
+                if (oldBaseSize && oldBaseSize > 0 && newBaseSize > 0) {
+                    const scale = newBaseSize / oldBaseSize;
+                    
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = selectedEl.text;
+
+                    const elementsWithFontSize = Array.from(tempDiv.querySelectorAll('span[style]')).filter(el => el.style.fontSize);
+
+                    elementsWithFontSize.forEach(span => {
+                        const currentSize = parseFloat(span.style.fontSize);
+                        if (!isNaN(currentSize)) {
+                            const newSize = currentSize * scale;
+                            span.style.fontSize = `${newSize.toFixed(2)}px`;
+                        }
+                    });
+                    
+                    selectedEl.text = tempDiv.innerHTML;
+                }
+            }
+        
             if (e.type === 'change') {
                 this.history.addState(preEditState);
             }
@@ -1162,17 +1186,17 @@ class MagazineEditor {
         const draggableEl = e.target.closest('.draggable');
 
         if (draggableEl) {
-            const newElementId = draggableEl.dataset.id;
-            const newElementData = this.state.elements.find(el => el.id === newElementId);
+            const elementId = draggableEl.dataset.id;
+            const elementData = this.state.elements.find(el => el.id === elementId);
 
-            // Selection is handled in mousedown. This handler only manages the text-editing click.
-            this.state.selectedElementId = newElementId;
+            // Selection is now handled in InteractionManager's mousedown,
+            // so we don't need to call selectElement here.
+            // This handler is now only for initiating inline editing.
 
-            if (newElementData?.type === 'text') {
-                this._startInlineEditing(newElementData, draggableEl, e);
+            if (elementData?.type === 'text') {
+                this._startInlineEditing(elementData, draggableEl, e);
             } else {
                 this.state.inlineEditingElementId = null;
-                this.render();
             }
         } else {
             this._deselectAndCleanup();
@@ -1188,7 +1212,7 @@ class MagazineEditor {
             this._setDirty(true);
         }
         this.state.inlineEditingElementId = elementData.id;
-        this.render();
+        this.renderCover();
 
         const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${elementData.id}"] [data-role="text-content"]`);
         if (!textContainer) return;
@@ -1395,7 +1419,7 @@ class MagazineEditor {
                 return;
             }
             this._clearCustomSelection();
-            this.renderSidebar(); // Re-render sidebar with whole element styles
+            this.updateSidebarValues(); // Re-render sidebar with whole element styles
         }
     }
 
@@ -1537,6 +1561,91 @@ class MagazineEditor {
         this.state.selectedElementId = null;
         this._setDirty(true);
         this.render();
+    }
+
+    selectElement(elementId, oldElementId) {
+        const oldElementData = this.state.elements.find(el => el.id === oldElementId);
+        const newElementData = this.state.elements.find(el => el.id === elementId);
+        
+        if (oldElementData && oldElementData.type === 'clipping-shape') {
+            this.history.addState(this._getStateSnapshot());
+            this.state.elements = this.state.elements.filter(el => el.id !== oldElementId);
+        }
+
+        this.state.selectedElementId = elementId;
+        if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
+            this.state.inlineEditingElementId = null;
+            this._clearCustomSelection();
+        }
+
+        if (oldElementData && newElementData && oldElementData.type === newElementData.type) {
+            this.renderCover();
+            this.updateSidebarValues();
+        } else {
+            this.render();
+        }
+    }
+
+    updateSidebarValues() {
+        const selectedEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        if (!selectedEl) return;
+
+        const header = this.dom.sidebarEditorHeader;
+        const content = this.dom.sidebarContent;
+
+        const typeNameMap = { 'text': 'טקסט', 'image': 'תמונה', 'clipping-shape': 'צורת חיתוך' };
+        const typeName = typeNameMap[selectedEl.type] || 'אלמנט';
+        header.querySelector('h3').textContent = `עריכת ${typeName}`;
+        header.querySelector('[data-property="id"]').value = selectedEl.id;
+
+        content.querySelectorAll('[data-property]').forEach(input => {
+            const prop = input.dataset.property;
+            if (selectedEl[prop] === undefined) return;
+            const value = selectedEl[prop];
+            
+            if (input.type === 'checkbox') {
+                input.checked = !!value;
+            } else if (input.matches('select')) {
+                input.value = value;
+            } else if (input.closest('.custom-color-picker')) {
+                const picker = input.closest('.custom-color-picker');
+                picker.dataset.value = value;
+                const swatch = picker.querySelector('.color-swatch-display');
+                const nativePicker = picker.querySelector('.native-color-picker');
+                const isTransparent = value === 'transparent';
+                
+                swatch.classList.toggle('is-transparent-swatch', isTransparent);
+                swatch.style.backgroundColor = isTransparent ? '#fff' : value;
+                nativePicker.value = isTransparent ? '#ffffff' : value;
+            } else if (input.type === 'number' || input.type === 'range') {
+                input.value = typeof value === 'number' ? Math.round(value * 10) / 10 : value;
+            } else {
+                input.value = value;
+            }
+        });
+
+        content.querySelectorAll('[data-action="toggle-property"]').forEach(btn => {
+            const prop = btn.dataset.property;
+            if (selectedEl[prop] !== undefined) {
+                const isActive = !!selectedEl[prop];
+                btn.classList.toggle('active', isActive);
+                btn.setAttribute('aria-pressed', String(isActive));
+            }
+        });
+
+        if (selectedEl.type === 'text') {
+            content.querySelectorAll('[data-action="align-text"]').forEach(btn => {
+                btn.classList.toggle('active', selectedEl.textAlign === btn.dataset.align);
+            });
+            content.querySelectorAll('[data-action="align-vertical-text"]').forEach(btn => {
+                btn.classList.toggle('active', selectedEl.verticalAlign === btn.dataset.align);
+            });
+            // Handle conditional display of opacity slider
+            const opacityControl = content.querySelector('[data-property="bgColorOpacity"]')?.closest('div');
+            if (opacityControl) {
+                opacityControl.style.display = (selectedEl.bgColor && selectedEl.bgColor !== 'transparent') ? 'flex' : 'none';
+            }
+        }
     }
     
     // --- End Color Swap ---

@@ -150,11 +150,10 @@ const _createTextEditorControls = (el) => {
                         ${_createColorPicker('color', 'צבע גופן', el.color)}
                         ${_createColorPicker('bgColor', 'צבע רקע', el.bgColor, 'align-popover-left')}
                     </div>
-                    ${el.bgColor && el.bgColor !== 'transparent' ? `
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3" style="display: ${el.bgColor && el.bgColor !== 'transparent' ? 'flex' : 'none'}">
                         <label for="bg-opacity-slider" class="text-sm font-medium text-slate-300 whitespace-nowrap">שקיפות רקע</label>
                         <input type="range" id="bg-opacity-slider" data-property="bgColorOpacity" min="0" max="1" step="0.01" value="${el.bgColorOpacity ?? 1}" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-                    </div>` : ''}
+                    </div>
                     <div class="flex gap-2 items-end">
                         <div class="flex-1">
                             <label class="block text-sm font-medium text-slate-300 mb-1">צורת רקע</label>
@@ -414,7 +413,7 @@ const _applyImageStyles = (domEl, el) => {
         domEl.appendChild(img);
     } else {
         domEl.className += ' bg-slate-600 text-slate-400 cursor-pointer flex-col';
-        domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
+        domEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm pointer-events-none">הוסף תמונה</span>`;
     }
 };
 

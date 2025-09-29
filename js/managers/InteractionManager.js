@@ -20,32 +20,20 @@ export class InteractionManager {
         this.preInteractionState = this.editor._getStateSnapshot();
 
         const elementId = draggableEl.dataset.id;
+        const oldElementId = this.editor.state.selectedElementId;
         const elementData = this.editor.state.elements.find(el => el.id === elementId);
         if (!elementData) return;
 
+        if (oldElementId !== elementId) {
+            this.editor.selectElement(elementId, oldElementId);
+        }
+        
         const action = e.target.dataset.action || 'drag';
 
         // Prevent dragging from the text element's inner area. Dragging is only possible
         // from the resize/rotate handles or the external drag handle (::before pseudo-element).
         if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-container"]')) {
             return;
-        }
-        
-        const oldSelectedId = this.editor.state.selectedElementId;
-        if (oldSelectedId !== elementId) {
-            if (oldSelectedId) {
-                const oldElement = this.editor.state.elements.find(el => el.id === oldSelectedId);
-                if (oldElement && oldElement.type === 'clipping-shape') {
-                    this.editor.state.elements = this.editor.state.elements.filter(el => el.id !== oldSelectedId);
-                }
-            }
-            
-            this.editor.state.selectedElementId = elementId;
-            if (this.editor.state.inlineEditingElementId && this.editor.state.inlineEditingElementId !== elementId) {
-                 this.editor.state.inlineEditingElementId = null;
-                 this.editor._clearCustomSelection();
-            }
-            this.editor.render();
         }
         
         e.preventDefault();
@@ -117,7 +105,7 @@ export class InteractionManager {
         this.state = {};
         this.snapLines = []; // Clear snap lines on mouse up
         this.editor.renderCover(); // Re-render to remove guides
-        this.editor._renderSidebarAndPreserveAccordion();
+        this.editor.updateSidebarValues();
     }
 
     performDragWithSnapping(e) {

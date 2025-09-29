@@ -45,26 +45,26 @@
     {
       "id": "mainTitle-2",
       "type": "text",
-      "text": "פסלים של מאיה שלא הכרת",
+      "text": "<span style=\"text-shadow: rgba(0, 0, 0, 0.7) 2px 2px 4px;\">פסלים של מאיה שלא </span>הכרת",
       "position": {
-        "x": 25,
-        "y": 619
+        "x": 21,
+        "y": 583
       },
       "fontSize": 30,
       "color": "#000000",
       "fontWeight": 900,
       "fontFamily": "Anton",
       "shadow": false,
-      "bgColor": "transparent",
-      "rotation": -5,
-      "shape": "rectangle",
+      "bgColor": "#22c55e",
+      "rotation": 0,
+      "shape": "rounded-rectangle",
       "textAlign": "center",
       "width": 145,
-      "height": 92,
+      "height": 108,
       "multiLine": true,
       "letterSpacing": 0,
       "lineHeight": 0.8,
-      "bgColorOpacity": 1,
+      "bgColorOpacity": 0.79,
       "verticalAlign": "center"
     },
     {
@@ -169,31 +169,6 @@
       "rotation": 5
     },
     {
-      "id": "el_1758641943691",
-      "type": "text",
-      "text": "<span style=\"font-size: 26px; color: rgb(0, 0, 0); text-shadow: none;\">בשער:</span><span style=\"color: rgb(0, 0, 0);\">\n</span><span style=\"color: rgb(255, 255, 255); font-size: 67px; line-height: 0.9;\">מאיה קימלמן</span><span style=\"color: rgb(0, 0, 0);\">\n</span><span style=\"font-size: 32px; color: rgb(0, 0, 0); font-weight: 400; text-shadow: none;\"><span style=\"line-height: 1.1;\">מספרת לראשונה </span>על התחביב הסודי שיש לה ליצירת תמונות מג'ונרטות של נשים בלבוש של חסה</span>",
-      "position": {
-        "x": 12,
-        "y": 170
-      },
-      "fontSize": 39,
-      "color": "#fde047",
-      "fontWeight": 700,
-      "fontFamily": "Heebo",
-      "shadow": true,
-      "bgColor": "transparent",
-      "rotation": 0,
-      "shape": "rectangle",
-      "textAlign": "left",
-      "multiLine": true,
-      "width": 247,
-      "height": 358,
-      "letterSpacing": 0,
-      "lineHeight": 1.2,
-      "bgColorOpacity": 1,
-      "verticalAlign": "start"
-    },
-    {
       "id": "el_1759060314438",
       "type": "text",
       "text": "<span style=\"color: rgb(181, 88, 243); font-weight: 900;\">שף חנוכה</span><div></div><span style=\"font-weight: 400;\"><div></div><span style=\"color: rgb(0, 0, 0); line-height: 1;\"><div></div><span style=\"font-size: 27px;\"><div>סופגניות מהירות</div><div>ותבשילי קדרה</div><div>בצ'יק צ'ק</div></span><div></div></span><div></div></span><div></div>",
@@ -242,6 +217,31 @@
       "height": 89,
       "letterSpacing": 0,
       "lineHeight": 0.8
+    },
+    {
+      "id": "el_1759128163986",
+      "type": "text",
+      "text": "<span style=\"text-align: left; font-size: 26px; color: rgb(0, 0, 0); text-shadow: none;\">בשער:</span><span style=\"font-size: 39px; text-align: left; color: rgb(0, 0, 0);\">\n</span><span style=\"text-align: left; font-size: 67px; line-height: 0.9; text-shadow: rgba(0, 0, 0, 0.7) 2px 2px 4px;\">מאיה קימלמן</span><span style=\"font-size: 39px; text-align: left; color: rgb(0, 0, 0);\">\n</span><span style=\"text-align: left; font-size: 32px; color: rgb(0, 0, 0); font-weight: 400; text-shadow: none;\"><span style=\"line-height: 1.1;\">מספרת לראשונה </span>על <span style=\"text-shadow: none;\">התחביב </span><span style=\"text-shadow: rgba(0, 0, 0, 0.7) 2px 2px 4px;\">הסודי </span>שיש לה ליצירת תמונות מג'ונרטות <span style=\"text-shadow: rgba(0, 0, 0, 0.7) 2px 2px 4px;\">של </span>נשים בלבוש של חסה</span>",
+      "position": {
+        "x": 8,
+        "y": 169
+      },
+      "fontSize": 48,
+      "color": "#FFFFFF",
+      "fontWeight": 700,
+      "fontFamily": "Heebo",
+      "shadow": false,
+      "bgColor": "transparent",
+      "bgColorOpacity": 1,
+      "rotation": 0,
+      "shape": "rectangle",
+      "textAlign": "left",
+      "verticalAlign": "center",
+      "multiLine": true,
+      "width": 278,
+      "height": 369,
+      "letterSpacing": 0,
+      "lineHeight": 1.2
     }
   ]
 }
