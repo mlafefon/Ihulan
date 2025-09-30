@@ -1,3 +1,4 @@
+
 export class InteractionManager {
     constructor(editor) {
         this.editor = editor;
@@ -203,7 +204,7 @@ export class InteractionManager {
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
             if (direction.includes('s') && Math.abs(bottomEdge - guide) < SNAP_THRESHOLD) {
-                newHeight = guide - newX;
+                newHeight = guide - newY; // Corrected from newX
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
         }

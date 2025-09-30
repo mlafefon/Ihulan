@@ -1344,39 +1344,62 @@ class MagazineEditor {
     _clearCustomSelection() {
         if (this.savedRange) this.savedRange = null;
         
-        const { draggableEl, overlayContainerEl } = this._getEditorElements();
-        if (draggableEl && overlayContainerEl) {
-            overlayContainerEl.innerHTML = '';
+        const { draggableEl } = this._getEditorElements();
+        if (draggableEl) {
             draggableEl.classList.remove('has-custom-selection');
         }
+        
+        this.dom.coverBoundary.querySelectorAll('.selection-overlay').forEach(el => el.remove());
     }
     
     _drawCustomSelectionOverlay() {
-        const { draggableEl, contentEl, overlayContainerEl } = this._getEditorElements();
+        const { draggableEl, contentEl } = this._getEditorElements();
         const selection = window.getSelection();
-
-        if (!selection || selection.rangeCount === 0 || !draggableEl || !contentEl || !overlayContainerEl) {
-             this._clearCustomSelection();
-             return;
+    
+        this._clearCustomSelection();
+    
+        if (!selection || selection.rangeCount === 0 || !draggableEl || !contentEl) {
+            if (selection && selection.rangeCount > 0) this.savedRange = selection.getRangeAt(0).cloneRange();
+            return;
         }
 
-        const range = selection.getRangeAt(0);
-        this.savedRange = range.cloneRange();
+        const elementData = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        if (!elementData) return;
         
-        overlayContainerEl.innerHTML = '';
+        const range = selection.getRangeAt(0);
+        if (range.collapsed) {
+            this.savedRange = range.cloneRange();
+            return;
+        }
+    
+        this.savedRange = range.cloneRange();
         draggableEl.classList.add('has-custom-selection');
-
-        const parentRect = overlayContainerEl.getBoundingClientRect();
+        
+        const coverBoundaryRect = this.dom.coverBoundary.getBoundingClientRect();
         const rects = range.getClientRects();
-
+    
+        let fontSize = 16;
+        if (range.startContainer) {
+            const container = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+            if (container && container instanceof HTMLElement) {
+                fontSize = parseFloat(window.getComputedStyle(container).fontSize);
+            }
+        }
+    
         for (const rect of rects) {
             const overlay = document.createElement('div');
             overlay.className = 'selection-overlay';
-            overlay.style.left = `${rect.left - parentRect.left}px`;
-            overlay.style.top = `${rect.top - parentRect.top}px`;
+            
+            const overlayHeight = fontSize;
+            const topOffset = (rect.height - overlayHeight) / 2;
+    
+            overlay.style.left = `${rect.left - coverBoundaryRect.left}px`;
+            overlay.style.top = `${rect.top - coverBoundaryRect.top + topOffset}px`;
             overlay.style.width = `${rect.width}px`;
-            overlay.style.height = `${rect.height}px`;
-            overlayContainerEl.appendChild(overlay);
+            overlay.style.height = `${overlayHeight}px`;
+            overlay.style.transform = `rotate(${elementData.rotation}deg)`;
+    
+            this.dom.coverBoundary.appendChild(overlay);
         }
     }
     
