@@ -1,9 +1,9 @@
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
 import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
 import { InteractionManager } from './js/managers/InteractionManager.js';
+import { HistoryManager } from './js/managers/HistoryManager.js';
 
 
 /**
@@ -11,77 +11,8 @@ import { InteractionManager } from './js/managers/InteractionManager.js';
  * Main script for the Magazine Cover Editor.
  *
  * Structure:
- * 1. HistoryManager: Handles undo/redo functionality.
- * 2. MagazineEditor: The main application class that orchestrates all modules.
+ * 1. MagazineEditor: The main application class that orchestrates all modules.
  */
-
-// --- HISTORY MANAGER CLASS ---
-class HistoryManager {
-    constructor(editor) {
-        this.editor = editor;
-        this.undoStack = [];
-        this.redoStack = [];
-        this.dom = {
-            undoBtn: document.getElementById('undo-btn'),
-            redoBtn: document.getElementById('redo-btn'),
-        };
-    }
-
-    _cloneState(state) {
-        // Deep copy only the necessary parts of the state for history
-        return JSON.parse(JSON.stringify({
-            elements: state.elements,
-            backgroundColor: state.backgroundColor,
-            coverWidth: state.coverWidth,
-            coverHeight: state.coverHeight,
-            templateName: state.templateName,
-        }));
-    }
-
-    addState(state) {
-        this.undoStack.push(this._cloneState(state));
-        this.redoStack = []; // Clear redo stack on new action
-        this.updateButtons();
-    }
-
-    undo() {
-        if (this.canUndo()) {
-            this.redoStack.push(this._cloneState(this.editor.state));
-            const prevState = this.undoStack.pop();
-            this.editor.restoreState(prevState);
-            this.updateButtons();
-        }
-    }
-
-    redo() {
-        if (this.canRedo()) {
-            this.undoStack.push(this._cloneState(this.editor.state));
-            const nextState = this.redoStack.pop();
-            this.editor.restoreState(nextState);
-            this.updateButtons();
-        }
-    }
-
-    clear() {
-        this.undoStack = [];
-        this.redoStack = [];
-        this.updateButtons();
-    }
-
-    canUndo() {
-        return this.undoStack.length > 0;
-    }
-
-    canRedo() {
-        return this.redoStack.length > 0;
-    }
-
-    updateButtons() {
-        this.dom.undoBtn.disabled = !this.canUndo();
-        this.dom.redoBtn.disabled = !this.canRedo();
-    }
-}
-
 
 // --- MAIN CLASS: MagazineEditor ---
 class MagazineEditor {
