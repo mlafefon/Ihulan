@@ -168,3 +168,5 @@ export async function exportImage(button, coverBoundary, state) {
         button.classList.remove('flex', 'items-center', 'justify-center');
     }
 }
+
+export { saveTemplate as saveTemplateService };

@@ -1,9 +1,10 @@
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
-import { loadAllTemplates, saveTemplate, exportTemplate, exportImage } from './js/services.js';
+import { exportTemplate, exportImage } from './js/services.js';
 import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
 import { InteractionManager } from './js/managers/InteractionManager.js';
 import { HistoryManager } from './js/managers/HistoryManager.js';
+import { TemplateManager } from './js/managers/TemplateManager.js';
 
 
 /**
@@ -32,7 +33,6 @@ class MagazineEditor {
         this.interactionState.isTypingFontSize = false;
         this.interactionState.isTypingLetterSpacing = false;
         this.interactionState.isTypingLineHeight = false;
-        this.templates = [];
         this.isLayerMenuOpen = false;
         this.savedRange = null; // To preserve text selection
         this.isApplyingStyle = false; // Flag to prevent selection events during style application
@@ -73,19 +73,74 @@ class MagazineEditor {
         };
     }
 
+    _applyDefaultElementProperties(elements) {
+        return elements.map(el => {
+            const baseDefaults = {
+                rotation: 0,
+            };
+    
+            if (el.type === 'text') {
+                const textDefaults = {
+                    ...baseDefaults,
+                    shadow: false,
+                    bgColor: 'transparent',
+                    bgColorOpacity: 1,
+                    shape: 'rectangle',
+                    textAlign: 'center',
+                    verticalAlign: 'center',
+                    multiLine: false,
+                    letterSpacing: 0,
+                    lineHeight: 1.2,
+                };
+                return { ...textDefaults, ...el };
+            }
+            
+            if (el.type === 'image') {
+                const imageDefaults = {
+                    ...baseDefaults,
+                    originalSrc: null,
+                    cropData: null,
+                };
+                return { ...imageDefaults, ...el };
+            }
+    
+            if (el.type === 'clipping-shape') {
+                const clipDefaults = {
+                    ...baseDefaults,
+                    shape: 'ellipse'
+                };
+                return { ...clipDefaults, ...el };
+            }
+    
+            return { ...baseDefaults, ...el };
+        });
+    }
+
+    _isValidTemplate(templateData) {
+        return (
+            templateData &&
+            typeof templateData.name === 'string' &&
+            Array.isArray(templateData.elements) &&
+            typeof templateData.backgroundColor === 'string' &&
+            typeof templateData.width === 'number' &&
+            typeof templateData.height === 'number'
+        );
+    }
+
     async _init() {
         this._cacheDom();
         this.history = new HistoryManager(this);
         this.imageEditor = new ImageEditor(this);
         this.interactionManager = new InteractionManager(this);
+        this.templateManager = new TemplateManager(this);
         loadGoogleFonts();
         injectFontStyles();
         
         this._bindEvents();
-        await this._loadAllTemplates();
+        await this.templateManager._loadAllTemplates();
 
-        if (this.templates.length > 0) {
-            this.loadTemplate(0);
+        if (this.templateManager.templates.length > 0) {
+            this.templateManager.loadTemplate(0);
         } else {
             console.error("לא נטענו תבניות. יש לוודא שקובץ manifest.json והתבניות קיימים.");
             this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא ניתן היה לטעון תבניות.</p>';
@@ -94,12 +149,12 @@ class MagazineEditor {
 
     _bindEvents() {
         this.dom.elementImageUploadInput.addEventListener('change', this._handleElementImageUpload.bind(this));
-        this.dom.changeTemplateBtn.addEventListener('click', this._openTemplateModal.bind(this));
+        this.dom.changeTemplateBtn.addEventListener('click', this.templateManager._openTemplateModal.bind(this.templateManager));
         this.dom.importTemplateBtn.addEventListener('click', () => this.dom.importTemplateInput.click());
-        this.dom.importTemplateInput.addEventListener('change', this._handleTemplateImport.bind(this));
-        this.dom.modalCloseBtn.addEventListener('click', this._closeTemplateModal.bind(this));
-        this.dom.templateModalOverlay.addEventListener('click', this._closeTemplateModal.bind(this));
-        this.dom.templateGrid.addEventListener('click', this._handleTemplateSelection.bind(this));
+        this.dom.importTemplateInput.addEventListener('change', this.templateManager._handleTemplateImport.bind(this.templateManager));
+        this.dom.modalCloseBtn.addEventListener('click', this.templateManager._closeTemplateModal.bind(this.templateManager));
+        this.dom.templateModalOverlay.addEventListener('click', this.templateManager._closeTemplateModal.bind(this.templateManager));
+        this.dom.templateGrid.addEventListener('click', this.templateManager._handleTemplateSelection.bind(this.templateManager));
 
         this.dom.templateNameInput.addEventListener('input', (e) => {
             this.state.templateName = e.target.value;
@@ -123,10 +178,7 @@ class MagazineEditor {
             }
         });
 
-        this.dom.saveTemplateBtn.addEventListener('click', () => saveTemplate(this.state, this.templates, async () => {
-            this._setDirty(false);
-            await this._loadAllTemplates(); // To refresh user templates list
-        }));
+        this.dom.saveTemplateBtn.addEventListener('click', () => this.templateManager.saveUserTemplate());
         this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
         this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
 
@@ -334,58 +386,6 @@ class MagazineEditor {
         }
     }
 
-    // --- Template Modal ---
-
-    _openTemplateModal() {
-        this.dom.templateGrid.innerHTML = '';
-        this.templates.forEach((template, index) => {
-            const previewEl = this._createTemplatePreview(template, index);
-            this.dom.templateGrid.appendChild(previewEl);
-        });
-        this.dom.templateModal.classList.remove('hidden');
-    }
-
-    _closeTemplateModal() {
-        this.dom.templateModal.classList.add('hidden');
-    }
-
-    _createTemplatePreview(template, index) {
-        const container = document.createElement('div');
-        container.className = 'template-preview-container cursor-pointer p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors';
-        container.dataset.templateIndex = index;
-        if (template.isUserTemplate) container.classList.add('user-template');
-
-        const cover = document.createElement('div');
-        cover.className = 'relative w-full overflow-hidden shadow-md';
-        cover.style.aspectRatio = `${template.width || 700} / ${template.height || 906}`;
-        cover.style.backgroundColor = template.backgroundColor;
-    
-        const scale = 180 / (template.width || 700);
-    
-        template.elements.forEach((el, elIndex) => {
-            const domEl = renderCoverElement(el, this.state, scale, elIndex);
-            cover.appendChild(domEl);
-        });
-    
-        const name = document.createElement('p');
-        name.className = 'text-center text-sm mt-2 text-slate-300';
-        name.textContent = template.name;
-    
-        container.appendChild(cover);
-        container.appendChild(name);
-        return container;
-    }
-    
-    _handleTemplateSelection(e) {
-        const container = e.target.closest('.template-preview-container');
-        if (container && container.dataset.templateIndex) {
-            const index = parseInt(container.dataset.templateIndex, 10);
-            this.loadTemplate(index);
-            this._closeTemplateModal();
-        }
-    }
-
-
     // --- State & Template Management ---
 
     _setDirty(isDirty) {
@@ -419,142 +419,7 @@ class MagazineEditor {
 
         this.historyRecordingSuspended = false;
     }
-    
-    async _loadAllTemplates() {
-        this.templates = await loadAllTemplates();
-    }
 
-    loadTemplate(index) {
-        if (this.historyRecordingSuspended) return;
-        const template = this.templates[index];
-        if (!template) {
-            console.error(`תבנית באינדקס ${index} אינה קיימת.`);
-            return;
-        }
-
-        // Deep copy and apply defaults
-        const elementsWithDefaults = this._applyDefaultElementProperties(template.elements);
-        
-        this.state = {
-            ...this.state,
-            templateIndex: index,
-            elements: elementsWithDefaults,
-            backgroundColor: template.backgroundColor,
-            selectedElementId: null,
-            inlineEditingElementId: null,
-            templateName: template.name,
-            coverWidth: template.width || 700,
-            coverHeight: template.height || 906,
-        };
-        this.dom.templateNameInput.value = template.name;
-        this.dom.templateWidthInput.value = this.state.coverWidth;
-        this.dom.templateHeightInput.value = this.state.coverHeight;
-
-        this._updateCoverDimensions();
-        
-        this._setDirty(false);
-        this.history.clear();
-        this.render();
-    }
-
-    _handleTemplateImport(e) {
-        const file = e.target.files && e.target.files[0];
-        if (!file) {
-            e.target.value = null; return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const content = event.target.result;
-                const templateData = JSON.parse(content);
-
-                if (this._isValidTemplate(templateData)) {
-                    this._loadTemplateFromFileData(templateData);
-                    // Immediately save the template so it appears in the list
-                    saveTemplate(this.state, this.templates, async () => {
-                        this._setDirty(false);
-                        await this._loadAllTemplates();
-                    });
-                } else {
-                    alert('קובץ התבנית אינו תקין או שאינו מכיל את כל המאפיינים הנדרשים.');
-                }
-            } catch (error) {
-                alert('שגיאה בניתוח קובץ ה-JSON. יש לוודא שהקובץ תקין.');
-                console.error("JSON Parse Error:", error);
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = null; // Reset for next import
-    }
-
-    _isValidTemplate(data) {
-        if (!data || typeof data !== 'object') return false;
-        const hasName = typeof data.name === 'string';
-        const hasElements = Array.isArray(data.elements);
-        const hasWidth = typeof data.width === 'number';
-        const hasHeight = typeof data.height === 'number';
-        const hasBgColor = typeof data.backgroundColor === 'string';
-
-        if (!(hasName && hasElements && hasWidth && hasHeight && hasBgColor)) {
-            return false;
-        }
-        // Optional: Check if at least one element has a valid structure
-        if (data.elements.length > 0) {
-            const firstEl = data.elements[0];
-            return typeof firstEl.id === 'string' && typeof firstEl.type === 'string' && typeof firstEl.position === 'object';
-        }
-        
-        return true; // Valid even with no elements
-    }
-    
-    _applyDefaultElementProperties(elements) {
-        // Ensure a deep copy is made
-        return JSON.parse(JSON.stringify(elements)).map(el => {
-            if (el.type === 'text') {
-                el.shape = el.shape || 'rectangle';
-                el.textAlign = el.textAlign || 'center';
-                el.verticalAlign = el.verticalAlign || 'center';
-                el.multiLine = el.multiLine || false;
-                el.letterSpacing = el.letterSpacing || 0;
-                el.lineHeight = el.lineHeight || 1.2;
-                el.bgColorOpacity = el.bgColorOpacity ?? 1;
-            }
-            if (el.type === 'image') {
-                if (el.cropData && typeof el.cropData.filters === 'undefined') {
-                    el.cropData.filters = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 };
-                }
-            }
-            return el;
-        });
-    }
-
-    _loadTemplateFromFileData(templateData) {
-        if (this.historyRecordingSuspended) return;
-        const elementsWithDefaults = this._applyDefaultElementProperties(templateData.elements);
-        
-        this.state = {
-            ...this.state,
-            templateIndex: null, // Not from the pre-loaded list
-            elements: elementsWithDefaults,
-            backgroundColor: templateData.backgroundColor,
-            selectedElementId: null,
-            inlineEditingElementId: null,
-            templateName: templateData.name,
-            coverWidth: templateData.width || 700,
-            coverHeight: templateData.height || 906,
-        };
-        this.dom.templateNameInput.value = templateData.name;
-        this.dom.templateWidthInput.value = this.state.coverWidth;
-        this.dom.templateHeightInput.value = this.state.coverHeight;
-
-        this._updateCoverDimensions();
-        
-        this._setDirty(true); // Mark as dirty since it's a new, unsaved state
-        this.history.clear();
-        this.render();
-    }
-    
     _updateCoverDimensions() {
         this.dom.magazineCover.style.maxWidth = `${this.state.coverWidth}px`;
         this.dom.magazineCover.style.aspectRatio = `${this.state.coverWidth} / ${this.state.coverHeight}`;
