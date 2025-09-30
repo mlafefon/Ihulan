@@ -1,3 +1,4 @@
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
@@ -926,21 +927,47 @@ class MagazineEditor {
             },
             'toggle-property': () => {
                 const prop = actionTarget.dataset.property;
-                if (selectedEl) {
-                     if (prop === 'shadow' && selectedEl.type === 'text') {
-                        const wasApplied = this._applyStyleToSelection({ 
-                            textShadow: selectedEl.shadow ? 'none' : '2px 2px 4px rgba(0,0,0,0.7)' 
-                        });
-                        if (wasApplied) {
-                            const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
-                            selectedEl.text = textContainer.innerHTML;
-                            this._setDirty(true);
-                        } else {
-                             this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+                if (!selectedEl) return;
+            
+                if (prop === 'shadow' && selectedEl.type === 'text') {
+                    // Check if we are in inline editing mode for rich text editing
+                    if (this.state.inlineEditingElementId === selectedEl.id) {
+                        const selection = window.getSelection();
+                        const range = (selection && selection.rangeCount > 0) ? selection.getRangeAt(0) : this.savedRange;
+                        const editorEl = this.dom.coverBoundary.querySelector(`[data-id="${this.state.inlineEditingElementId}"] [data-role="text-content"]`);
+                        
+                        if (range && editorEl) {
+                            let commonAncestor = range.commonAncestorContainer;
+                            if (commonAncestor.nodeType === Node.TEXT_NODE) {
+                                commonAncestor = commonAncestor.parentElement;
+                            }
+            
+                            // Ensure we are working inside the correct contentEditable element
+                            if (editorEl.contains(commonAncestor)) {
+                                const styles = window.getComputedStyle(commonAncestor);
+                                const hasShadow = styles.textShadow && styles.textShadow !== 'none';
+                                
+                                const wasApplied = this._applyStyleToSelection({ 
+                                    textShadow: hasShadow ? 'none' : '2px 2px 4px rgba(0,0,0,0.7)' 
+                                });
+            
+                                if (wasApplied) {
+                                    const textContainer = this.dom.coverBoundary.querySelector(`[data-id="${this.state.selectedElementId}"] [data-role="text-content"]`);
+                                    selectedEl.text = this._cleanupTextHtml(textContainer.innerHTML);
+                                    this._setDirty(true);
+                                    // Let the main render loop handle UI updates
+                                    return; // Action handled for selection
+                                }
+                            }
                         }
-                    } else {
-                         this.updateSelectedElement({ [prop]: !selectedEl[prop] });
                     }
+                    
+                    // Fallback: Toggle for the whole element if not in inline mode or no selection
+                    this.updateSelectedElement({ [prop]: !selectedEl[prop] });
+            
+                } else {
+                     // Handle other boolean properties
+                     this.updateSelectedElement({ [prop]: !selectedEl[prop] });
                 }
             },
             'perform-clip': () => this._performClip(),
