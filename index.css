@@ -489,6 +489,7 @@ button { text-transform: none; background-color: transparent; background-image: 
 .space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
 .min-h-\[200px\] { min-height: 200px; }
 .min-h-0 { min-height: 0; }
+.min-w-0 { min-width: 0; }
 .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
 .pt-4 { padding-top: 1rem; }
 .border-t { border-top-width: 1px; }
@@ -619,6 +620,7 @@ button { text-transform: none; background-color: transparent; background-image: 
 #template-modal.hidden { display: none; }
 .max-w-4xl { max-width: 56rem; }
 .max-w-6xl { max-width: 72rem; }
+.max-w-7xl { max-width: 80rem; }
 .max-h-\[90vh\] { max-height: 90vh; }
 .max-h-\[95vh\] { max-height: 95vh; }
 .h-\[95vh\] { height: 95vh; }
