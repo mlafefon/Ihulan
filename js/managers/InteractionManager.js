@@ -46,7 +46,7 @@ export class InteractionManager {
         }
 
         // For any other click on a draggable element (image, handles, text ::before area),
-        // proceed with selection and potential drag/resize/rotate.
+        // proceed with potential drag/resize/rotate.
         this.preInteractionState = this.editor._getStateSnapshot();
 
         if (oldElementId !== elementId) {
@@ -131,12 +131,15 @@ export class InteractionManager {
         const { element, startX, startY, initial } = this.state;
         const SNAP_THRESHOLD = 8;
         const { coverWidth, coverHeight } = this.editor.state;
+        
+        const currentWidth = this.editor.dom.coverBoundary.offsetWidth;
+        const scale = (this.editor.state.coverWidth > 0 && currentWidth > 0) ? currentWidth / this.editor.state.coverWidth : 1;
     
-        let newX = initial.x + (e.clientX - startX);
-        let newY = initial.y + (e.clientY - startY);
+        let newX = initial.x + (e.clientX - startX) / scale;
+        let newY = initial.y + (e.clientY - startY) / scale;
     
-        const elWidth = element.width || this.editor.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetWidth;
-        const elHeight = element.height || this.editor.dom.coverBoundary.querySelector(`[data-id="${element.id}"]`).offsetHeight;
+        const elWidth = element.width || initial.width;
+        const elHeight = element.height || initial.height;
     
         const elPoints = {
             v: [newX, newX + elWidth / 2, newX + elWidth],
@@ -148,10 +151,11 @@ export class InteractionManager {
         };
     
         let snappedV = false, snappedH = false;
+        const snapThresholdInModel = SNAP_THRESHOLD / scale;
     
         for (const guide of guides.v) {
             for (const [i, point] of elPoints.v.entries()) {
-                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
+                if (Math.abs(point - guide) < snapThresholdInModel) {
                     newX += guide - point;
                     this.snapLines.push({ type: 'vertical', position: guide });
                     snappedV = true;
@@ -163,7 +167,7 @@ export class InteractionManager {
     
         for (const guide of guides.h) {
             for (const [i, point] of elPoints.h.entries()) {
-                if (Math.abs(point - guide) < SNAP_THRESHOLD) {
+                if (Math.abs(point - guide) < snapThresholdInModel) {
                     newY += guide - point;
                     this.snapLines.push({ type: 'horizontal', position: guide });
                     snappedH = true;
@@ -188,9 +192,12 @@ export class InteractionManager {
         const SNAP_THRESHOLD = 8;
         const { coverWidth, coverHeight } = this.editor.state;
         
+        const currentWidth = this.editor.dom.coverBoundary.offsetWidth;
+        const scale = (this.editor.state.coverWidth > 0 && currentWidth > 0) ? currentWidth / this.editor.state.coverWidth : 1;
+
         let { x, y, width, height } = initial;
-        let dx = e.clientX - startX;
-        let dy = e.clientY - startY;
+        let dx = (e.clientX - startX) / scale;
+        let dy = (e.clientY - startY) / scale;
 
         let newX = x, newY = y, newWidth = width, newHeight = height;
 
@@ -200,15 +207,16 @@ export class InteractionManager {
         if (direction.includes('n')) { newHeight = Math.max(20, height - dy); newY = y + dy; }
         
         const guides = { v: [0, coverWidth / 2, coverWidth], h: [0, coverHeight / 2, coverHeight] };
+        const snapThresholdInModel = SNAP_THRESHOLD / scale;
         
         // Vertical snapping
         const rightEdge = newX + newWidth;
         for (const guide of guides.v) {
-            if (direction.includes('w') && Math.abs(newX - guide) < SNAP_THRESHOLD) {
+            if (direction.includes('w') && Math.abs(newX - guide) < snapThresholdInModel) {
                 const diff = guide - newX; newX = guide; newWidth -= diff;
                 this.snapLines.push({ type: 'vertical', position: guide }); break;
             }
-            if (direction.includes('e') && Math.abs(rightEdge - guide) < SNAP_THRESHOLD) {
+            if (direction.includes('e') && Math.abs(rightEdge - guide) < snapThresholdInModel) {
                 newWidth = guide - newX;
                 this.snapLines.push({ type: 'vertical', position: guide }); break;
             }
@@ -217,12 +225,12 @@ export class InteractionManager {
         // Horizontal snapping
         const bottomEdge = newY + newHeight;
         for (const guide of guides.h) {
-            if (direction.includes('n') && Math.abs(newY - guide) < SNAP_THRESHOLD) {
+            if (direction.includes('n') && Math.abs(newY - guide) < snapThresholdInModel) {
                 const diff = guide - newY; newY = guide; newHeight -= diff;
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
-            if (direction.includes('s') && Math.abs(bottomEdge - guide) < SNAP_THRESHOLD) {
-                newHeight = guide - newY; // Corrected from newX
+            if (direction.includes('s') && Math.abs(bottomEdge - guide) < snapThresholdInModel) {
+                newHeight = guide - newY;
                 this.snapLines.push({ type: 'horizontal', position: guide }); break;
             }
         }

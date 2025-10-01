@@ -137,6 +137,11 @@ class MagazineEditor {
         loadGoogleFonts();
         injectFontStyles();
         
+        this.resizeObserver = new ResizeObserver(() => {
+            this.renderCover();
+        });
+        this.resizeObserver.observe(this.dom.coverBoundary);
+
         this._bindEvents();
         await this.templateManager._loadAllTemplates();
 
@@ -460,16 +465,19 @@ class MagazineEditor {
     }
 
     renderCover(snapLines = []) {
+        const currentWidth = this.dom.coverBoundary.offsetWidth;
+        const scale = (this.state.coverWidth > 0 && currentWidth > 0) ? currentWidth / this.state.coverWidth : 1;
+    
         this.dom.coverBoundary.innerHTML = '';
         this.dom.coverBoundary.style.backgroundColor = this.state.backgroundColor;
         this.state.elements.forEach((el, index) => {
-            const domEl = renderCoverElement(el, this.state, 1, index);
+            const domEl = renderCoverElement(el, this.state, scale, index);
             this.dom.coverBoundary.appendChild(domEl);
         });
-        this._renderSnapGuides(snapLines);
+        this._renderSnapGuides(snapLines, scale);
     }
     
-    _renderSnapGuides(snapLines) {
+    _renderSnapGuides(snapLines, scale = 1) {
         // Clear existing guides
         this.dom.coverBoundary.querySelectorAll('.snap-guide').forEach(el => el.remove());
         
@@ -478,9 +486,9 @@ class MagazineEditor {
             const guideEl = document.createElement('div');
             guideEl.className = `snap-guide ${line.type}`;
             if (line.type === 'vertical') {
-                guideEl.style.left = `${line.position}px`;
+                guideEl.style.left = `${line.position * scale}px`;
             } else {
-                guideEl.style.top = `${line.position}px`;
+                guideEl.style.top = `${line.position * scale}px`;
             }
             this.dom.coverBoundary.appendChild(guideEl);
         });

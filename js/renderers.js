@@ -1,3 +1,4 @@
+
 // --- Sidebar Control Builders (Private helpers) ---
 
 import { FONTS } from './fonts.js';
@@ -397,7 +398,18 @@ const _applyTextStyles = (domEl, el, scale) => {
 
     const textWrapper = document.createElement('div');
     textWrapper.dataset.role = 'text-content';
-    textWrapper.innerHTML = el.text; // Use innerHTML to render styled spans
+    
+    // Create a temporary div to parse and scale inline styles
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = el.text;
+    tempDiv.querySelectorAll('span[style*="font-size"]').forEach(span => {
+        const currentSize = parseFloat(span.style.fontSize);
+        if (!isNaN(currentSize)) {
+            span.style.fontSize = `${(currentSize * scale).toFixed(2)}px`;
+        }
+    });
+    textWrapper.innerHTML = tempDiv.innerHTML;
+    
     const font = FONTS.find(f => f.family === el.fontFamily);
     const fontClassName = font ? font.className : 'font-heebo';
     textWrapper.className = fontClassName;
@@ -405,10 +417,10 @@ const _applyTextStyles = (domEl, el, scale) => {
         color: el.color, 
         fontSize: `${el.fontSize * scale}px`, 
         fontWeight: el.fontWeight, 
-        textShadow: el.shadow ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none', 
+        textShadow: el.shadow ? `${2 * scale}px ${2 * scale}px ${4 * scale}px rgba(0,0,0,0.7)` : 'none', 
         textAlign: el.textAlign || 'center', 
         width: '100%', 
-        letterSpacing: `${el.letterSpacing || 0}px`, 
+        letterSpacing: `${(el.letterSpacing || 0) * scale}px`, 
         lineHeight: el.lineHeight || 1.2,
         position: 'relative', // Ensure text is on top of overlay
         zIndex: '1'
