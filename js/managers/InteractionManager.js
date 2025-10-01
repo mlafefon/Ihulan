@@ -8,34 +8,52 @@ export class InteractionManager {
     }
 
     handleCoverMouseDown(e) {
+        // If we're already in contenteditable, let the browser handle it.
         if (e.target.closest('[contenteditable="true"]')) {
-            // When clicking inside an already-editable text, clear the selection overlay
             setTimeout(() => {
                 if (window.getSelection().isCollapsed) this.editor._clearCustomSelection();
             }, 0);
             return;
         }
+
         const draggableEl = e.target.closest('.draggable');
-        if (!draggableEl) return;
 
-        this.preInteractionState = this.editor._getStateSnapshot();
-
+        // If click is outside any element on the cover, deselect.
+        if (!draggableEl) {
+            if (e.target === this.editor.dom.coverBoundary) {
+                this.editor._deselectAndCleanup();
+            }
+            return;
+        }
+        
         const elementId = draggableEl.dataset.id;
         const oldElementId = this.editor.state.selectedElementId;
         const elementData = this.editor.state.elements.find(el => el.id === elementId);
         if (!elementData) return;
+
+        // If it's a text element and the click is on the content, start inline editing immediately.
+        if (elementData.type === 'text' && e.target.closest('[data-role="text-container"]')) {
+            let currentDraggableEl = draggableEl;
+            if (oldElementId !== elementId) {
+                this.editor.selectElement(elementId, oldElementId);
+                // After render, get the new DOM element
+                currentDraggableEl = this.editor.dom.coverBoundary.querySelector(`[data-id="${elementId}"]`);
+            }
+            // This prevents the drag/resize logic from running.
+            this.editor._startInlineEditing(elementData, currentDraggableEl, e);
+            e.preventDefault(); // Prevent text selection flashing and other side effects
+            return;
+        }
+
+        // For any other click on a draggable element (image, handles, text ::before area),
+        // proceed with selection and potential drag/resize/rotate.
+        this.preInteractionState = this.editor._getStateSnapshot();
 
         if (oldElementId !== elementId) {
             this.editor.selectElement(elementId, oldElementId);
         }
         
         const action = e.target.dataset.action || 'drag';
-
-        // Prevent dragging from the text element's inner area. Dragging is only possible
-        // from the resize/rotate handles or the external drag handle (::before pseudo-element).
-        if (elementData.type === 'text' && action === 'drag' && e.target.closest('[data-role="text-container"]')) {
-            return;
-        }
         
         e.preventDefault();
         e.stopPropagation();

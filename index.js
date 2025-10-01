@@ -1030,24 +1030,12 @@ class MagazineEditor {
     }
     
     _handleCoverClick(e) {
-        if (e.target.closest('[contenteditable="true"]')) return;
-        const draggableEl = e.target.closest('.draggable');
-
-        if (draggableEl) {
-            const elementId = draggableEl.dataset.id;
-            const elementData = this.state.elements.find(el => el.id === elementId);
-
-            // Selection is now handled in InteractionManager's mousedown,
-            // so we don't need to call selectElement here.
-            // This handler is now only for initiating inline editing.
-
-            if (elementData?.type === 'text') {
-                this._startInlineEditing(elementData, draggableEl, e);
-            } else {
-                this.state.inlineEditingElementId = null;
-            }
-        } else {
-            this._deselectAndCleanup();
+        // All mousedown-based interactions (selection, dragging, starting edits)
+        // are now handled in InteractionManager.js to fix an event propagation issue.
+        // This handler is now redundant for those actions.
+        if (e.target.closest('[contenteditable="true"]')) {
+            // Clicks inside an already-editable area are handled by the browser and selectionchange listener.
+            return;
         }
     }
 
