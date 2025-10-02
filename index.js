@@ -137,6 +137,8 @@ class MagazineEditor {
         loadGoogleFonts();
         injectFontStyles();
         
+        this._displayVersion();
+
         this.resizeObserver = new ResizeObserver(() => {
             this.renderCover();
         });
@@ -221,6 +223,26 @@ class MagazineEditor {
         });
 
         document.addEventListener('selectionchange', this._handleSelectionChange.bind(this));
+    }
+
+    async _displayVersion() {
+        try {
+            const response = await fetch('metadata.json');
+            const metadata = await response.json();
+            const version = metadata.version;
+
+            if (version) {
+                const titleElement = this.dom.sidebar.querySelector('h1');
+                if (titleElement) {
+                    const versionElement = document.createElement('p');
+                    versionElement.textContent = `גרסה ${version}`;
+                    versionElement.className = 'text-xs text-slate-500 mb-1';
+                    titleElement.parentNode.insertBefore(versionElement, titleElement);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load metadata for version display:", error);
+        }
     }
 
     _toggleAccordionPanel(toggleBtn) {
