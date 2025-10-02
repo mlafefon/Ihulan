@@ -16,6 +16,14 @@ import { TemplateManager } from './js/managers/TemplateManager.js';
  * 1. MagazineEditor: The main application class that orchestrates all modules.
  */
 
+// --- SUPABASE SETUP ---
+// יש להחליף את הערכים האלה בערכים מהפרויקט שלך ב-Supabase
+const SUPABASE_URL = 'https://klicewxazipstfdlfwbb.supabase.co'; 
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaWNld3hhemlwc3RmZGxmd2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNTY1NDgsImV4cCI6MjA3NDkzMjU0OH0.XJbN59NCq7KPUQu3MpCmXMg1T2RchPhNhio5NKwlnjY';
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
 // --- UTILITY FUNCTIONS ---
 
 /**
@@ -65,6 +73,7 @@ class MagazineEditor {
             templateName: '',
             isDirty: false,
         };
+        this.user = null;
         this.interactionState = {}; // For drag/resize/rotate/color-picking
         this.interactionState.isTypingFontSize = false;
         this.interactionState.isTypingLetterSpacing = false;
@@ -87,6 +96,7 @@ class MagazineEditor {
             magazineCover: document.getElementById('magazine-cover'),
             coverBoundary: document.getElementById('cover-boundary'),
             sidebar: document.getElementById('sidebar'),
+            authContainer: document.getElementById('auth-container'),
             sidebarEditorHeader: document.getElementById('sidebar-editor-header'),
             sidebarContent: document.getElementById('sidebar-content'),
             templateActions: document.getElementById('template-actions'),
@@ -169,11 +179,12 @@ class MagazineEditor {
         this.history = new HistoryManager(this);
         this.imageEditor = new ImageEditor(this);
         this.interactionManager = new InteractionManager(this);
-        this.templateManager = new TemplateManager(this);
+        this.templateManager = new TemplateManager(this, supabaseClient);
         loadGoogleFonts();
         injectFontStyles();
         
         this._displayVersion();
+        this._initAuth();
 
         this.resizeObserver = new ResizeObserver(() => {
             this.renderCover();
@@ -181,13 +192,57 @@ class MagazineEditor {
         this.resizeObserver.observe(this.dom.coverBoundary);
 
         this._bindEvents();
-        await this.templateManager._loadAllTemplates();
+        
+        // Initial load is now handled by the auth state change listener
+    }
 
-        if (this.templateManager.templates.length > 0) {
-            this.templateManager.loadTemplate(0);
+    _initAuth() {
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            this.user = session?.user || null;
+            this._renderAuthState();
+            
+            // Reload templates whenever auth state changes
+            await this.templateManager._loadAllTemplates();
+            if (this.templateManager.templates.length > 0) {
+                 // Don't override user's work on login/logout, just refresh list
+                if (event === 'INITIAL_SESSION') {
+                   this.templateManager.loadTemplate(0);
+                }
+            } else {
+                 this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
+            }
+        });
+    }
+    
+    _renderAuthState() {
+        this.dom.authContainer.innerHTML = '';
+        if (this.user) {
+            const userInfo = document.createElement('div');
+            userInfo.className = 'auth-user-info';
+            userInfo.innerHTML = `
+                <div class="user-details">
+                    <img src="${this.user.user_metadata.avatar_url}" alt="User Avatar" class="user-avatar">
+                    <span class="user-email">${this.user.email}</span>
+                </div>
+                <button id="logout-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="יציאה">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13v-2H7v-2h9V5l4 3.5-4 3.5zM20 3h-9c-1.103 0-2 .897-2 2v4h2V5h9v14h-9v-4H9v4c0 1.103.897 2 2 2h9c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2z"/></svg>
+                </button>
+            `;
+            this.dom.authContainer.appendChild(userInfo);
+            this.dom.authContainer.querySelector('#logout-btn').addEventListener('click', () => supabaseClient.auth.signOut());
+            this.dom.saveTemplateBtn.disabled = false;
         } else {
-            console.error("לא נטענו תבניות. יש לוודא שקובץ manifest.json והתבניות קיימים.");
-            this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא ניתן היה לטעון תבניות.</p>';
+            const loginBtn = document.createElement('button');
+            loginBtn.id = 'login-btn';
+            loginBtn.className = 'sidebar-btn bg-indigo-600 hover:bg-indigo-700';
+            loginBtn.innerHTML = `
+                <span class="flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A8 8 0 0 1 24 36c-4.418 0-8-3.582-8-8h-8c0 6.627 5.373 12 12 12z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C43.021 36.258 48 30.656 48 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                    <span>התחברות עם גוגל</span>
+                </span>`;
+            this.dom.authContainer.appendChild(loginBtn);
+            loginBtn.addEventListener('click', () => supabaseClient.auth.signInWithOAuth({ provider: 'google' }));
+            this.dom.saveTemplateBtn.disabled = true;
         }
     }
 

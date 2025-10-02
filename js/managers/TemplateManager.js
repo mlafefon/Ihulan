@@ -1,15 +1,46 @@
+
 import { renderCoverElement } from '../renderers.js';
-import { loadAllTemplates, saveTemplate as saveTemplateService } from '../services.js';
+import { exportTemplate } from '../services.js';
 
 export class TemplateManager {
-    constructor(editor) {
+    constructor(editor, supabaseClient) {
         this.editor = editor;
+        this.supabase = supabaseClient;
         this.templates = [];
     }
 
     async _loadAllTemplates() {
-        this.templates = await loadAllTemplates();
+        try {
+            // Fetch public templates (user_id is null)
+            const { data: publicData, error: publicError } = await this.supabase
+                .from('templates')
+                .select('template_data')
+                .is('user_id', null);
+
+            if (publicError) throw publicError;
+            
+            const publicTemplates = publicData.map(item => ({ ...item.template_data, isUserTemplate: false }));
+            
+            let userTemplates = [];
+            if (this.editor.user) {
+                // Fetch user-specific templates
+                const { data: userData, error: userError } = await this.supabase
+                    .from('templates')
+                    .select('template_data')
+                    .eq('user_id', this.editor.user.id);
+                
+                if (userError) throw userError;
+                userTemplates = userData.map(item => ({ ...item.template_data, isUserTemplate: true }));
+            }
+            
+            this.templates = [...publicTemplates, ...userTemplates];
+
+        } catch (error) {
+            console.error("נכשל בטעינת התבניות מ-Supabase:", error);
+            this.templates = [];
+        }
     }
+
 
     loadTemplate(index) {
         if (this.editor.historyRecordingSuspended) return;
@@ -98,12 +129,44 @@ export class TemplateManager {
         this.editor.render();
     }
     
-    saveUserTemplate() {
-        saveTemplateService(this.editor.state, this.templates, async () => {
+    async saveUserTemplate() {
+        if (!this.editor.user) {
+            alert('עליך להתחבר כדי לשמור תבניות.');
+            return;
+        }
+        
+        const name = this.editor.state.templateName.trim();
+        if (!name) {
+            alert('יש להזין שם לתבנית.');
+            return;
+        }
+
+        const template_data = {
+            name,
+            width: this.editor.state.coverWidth,
+            height: this.editor.state.coverHeight,
+            backgroundColor: this.editor.state.backgroundColor,
+            elements: this.editor.state.elements,
+        };
+
+        const { error } = await this.supabase
+            .from('templates')
+            .upsert({ 
+                user_id: this.editor.user.id,
+                name: name,
+                template_data: template_data 
+            }, { onConflict: 'user_id, name' });
+
+        if (error) {
+            console.error('Error saving template to Supabase:', error);
+            alert(`שגיאה בשמירת התבנית: ${error.message}`);
+        } else {
+            alert(`התבנית "${name}" נשמרה בהצלחה!`);
             this.editor._setDirty(false);
-            await this._loadAllTemplates(); // To refresh user templates list
-        });
+            await this._loadAllTemplates();
+        }
     }
+
 
     // --- Template Modal ---
 

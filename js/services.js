@@ -1,65 +1,5 @@
+
 import { getGoogleFontsUrl } from './fonts.js';
-
-export async function loadAllTemplates() {
-    try {
-        const manifestResponse = await fetch('templates/manifest.json');
-        if (!manifestResponse.ok) throw new Error(`שגיאת HTTP! סטטוס: ${manifestResponse.status}`);
-        
-        const manifest = await manifestResponse.json();
-        const templatePromises = manifest.templates.map(url =>
-            fetch(`templates/${url}`)
-                .then(res => {
-                    if (!res.ok) {
-                        throw new Error(`שגיאת HTTP! סטטוס: ${res.status}`);
-                    }
-                    return res.json(); // This can also throw if JSON is invalid
-                })
-                .catch(error => {
-                    console.error(`שגיאה בטעינת תבנית '${url}': ${error.message}. מדלג על תבנית זו.`);
-                    return null; // Return null for failed templates
-                })
-        );
-        
-        // Promise.all will now resolve with an array containing template objects and nulls
-        const results = await Promise.all(templatePromises);
-        
-        // Filter out the nulls (failed templates)
-        const defaultTemplates = results.filter(template => template !== null);
-        
-        let userTemplates = [];
-        try {
-            userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-            userTemplates.forEach(t => t.isUserTemplate = true);
-        } catch (e) {
-            console.error("לא ניתן לטעון תבניות משתמש מ-localStorage", e);
-        }
-        return [...defaultTemplates, ...userTemplates];
-    } catch (error) {
-        console.error("נכשל בטעינת התבניות:", error);
-        return [];
-    }
-}
-
-export function saveTemplate(state, templates, callback) {
-    const name = state.templateName.trim();
-    if (!name) { alert('יש להזין שם לתבנית.'); return; }
-
-    const newTemplate = {
-        name,
-        width: state.coverWidth, height: state.coverHeight,
-        backgroundColor: state.backgroundColor,
-        elements: state.elements,
-    };
-
-    let userTemplates = JSON.parse(localStorage.getItem('userTemplates')) || [];
-    const existingIndex = userTemplates.findIndex(t => t.name === name);
-    if (existingIndex > -1) userTemplates[existingIndex] = newTemplate;
-    else userTemplates.push(newTemplate);
-
-    localStorage.setItem('userTemplates', JSON.stringify(userTemplates));
-    alert(`התבנית "${name}" נשמרה בהצלחה!`);
-    callback();
-}
 
 export function exportTemplate(state) {
     const name = state.templateName.trim() || 'Untitled Template';
@@ -168,5 +108,3 @@ export async function exportImage(button, coverBoundary, state) {
         button.classList.remove('flex', 'items-center', 'justify-center');
     }
 }
-
-export { saveTemplate as saveTemplateService };
