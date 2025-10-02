@@ -1510,7 +1510,11 @@ class MagazineEditor {
         const typeNameMap = { 'text': 'טקסט', 'image': 'תמונה', 'clipping-shape': 'צורת חיתוך' };
         const typeName = typeNameMap[selectedEl.type] || 'אלמנט';
         header.querySelector('h3').textContent = `עריכת ${typeName}`;
-        header.querySelector('[data-property="id"]').value = selectedEl.id;
+        
+        const idInput = header.querySelector('[data-property="id"]');
+        if (idInput) {
+            idInput.value = selectedEl.id;
+        }
 
         content.querySelectorAll('[data-property]').forEach(input => {
             const prop = input.dataset.property;
