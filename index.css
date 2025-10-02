@@ -676,8 +676,8 @@ button { text-transform: none; background-color: transparent; background-image: 
     font-weight: 600;
 }
 
-/* Image Editor Modal Styles */
-#image-editor-modal.hidden { display: none; }
+/* Image Editor View Styles */
+#image-editor-view.hidden { display: none; }
 
 #image-preview-wrapper { 
     user-select: none; 
@@ -686,7 +686,7 @@ button { text-transform: none; background-color: transparent; background-image: 
 #image-preview-wrapper.brushing-mode {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="1" fill="white"/></svg>') 12 12, crosshair;
 }
-#image-editor-modal.color-picking-mode #image-preview-wrapper {
+#image-editor-view.color-picking-mode #image-preview-wrapper {
     cursor: crosshair;
 }
 #image-preview-frame {

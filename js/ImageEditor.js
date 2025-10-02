@@ -11,7 +11,7 @@ export class ImageEditor {
 
     _cacheDom() {
         this.dom = {
-            modal: document.getElementById('image-editor-modal'),
+            modal: document.getElementById('image-editor-view'),
             previewContainer: document.getElementById('image-preview-container'),
             previewWrapper: document.getElementById('image-preview-wrapper'),
             previewFrame: document.getElementById('image-preview-frame'),
@@ -19,6 +19,7 @@ export class ImageEditor {
             zoomSlider: document.getElementById('zoom-slider'),
             confirmCropBtn: document.getElementById('confirm-crop-btn'),
             imageEditorCloseBtn: document.getElementById('image-editor-close-btn'),
+            imageEditorBackBtn: document.getElementById('image-editor-back-btn'),
             replaceImageBtn: document.getElementById('replace-image-btn'),
             sourceRes: document.getElementById('source-res'),
             targetRes: document.getElementById('target-res'),
@@ -90,6 +91,7 @@ export class ImageEditor {
         this.state.originalImageData = this.state.offscreenCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight);
 
         this.dom.previewImg.src = fileOrSrc;
+        this.editor.dom.mainEditorContainer.classList.add('hidden');
         this.dom.modal.classList.remove('hidden');
 
         this.dom.sourceRes.textContent = `${image.naturalWidth}x${image.naturalHeight}`;
@@ -192,6 +194,7 @@ export class ImageEditor {
         }
         this._resetBlurState();
         this.state = null;
+        this.editor.dom.mainEditorContainer.classList.remove('hidden');
         this.dom.modal.classList.add('hidden');
         this.dom.previewImg.style.filter = '';
         this.dom.previewFrame.style.border = 'none';
@@ -227,6 +230,7 @@ export class ImageEditor {
         
         this.dom.confirmCropBtn.addEventListener('click', () => this._handleConfirm());
         this.dom.imageEditorCloseBtn.addEventListener('click', () => this.close());
+        this.dom.imageEditorBackBtn.addEventListener('click', () => this.close());
         this.dom.replaceImageBtn.addEventListener('click', () => this.editor.dom.elementImageUploadInput.click());
 
         // Blur events

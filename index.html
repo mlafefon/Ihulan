@@ -9,107 +9,109 @@
     <link rel="stylesheet" href="index.css">
 </head>
 <body class="bg-slate-900 text-white">
-    <div class="min-h-screen bg-slate-900 flex flex-col lg:flex-row items-start justify-center p-4 lg:p-8 gap-8">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="w-full lg:w-96 bg-slate-800 p-6 rounded-lg shadow-lg flex flex-col self-start">
-            <div class="mb-6">
-                <h1 class="text-3xl font-bold text-white">איחולן</h1>
-                <p class="text-slate-400 mt-2">
-                    עצבו את שער המגזין שלכם. לחצו על אלמנט כדי לבחור אותו, ולחצו שוב על טקסט כדי לערוך אותו ישירות.
-                </p>
-            </div>
-            
-            <div id="sidebar-editor-header" class="hidden flex-shrink-0">
-                <!-- Dynamic fixed header will be injected here -->
-            </div>
+    <div id="main-editor-container">
+        <div class="min-h-screen bg-slate-900 flex flex-col lg:flex-row items-start justify-center p-4 lg:p-8 gap-8">
+            <!-- Sidebar -->
+            <aside id="sidebar" class="w-full lg:w-96 bg-slate-800 p-6 rounded-lg shadow-lg flex flex-col self-start">
+                <div class="mb-6">
+                    <h1 class="text-3xl font-bold text-white">איחולן</h1>
+                    <p class="text-slate-400 mt-2">
+                        עצבו את שער המגזין שלכם. לחצו על אלמנט כדי לבחור אותו, ולחצו שוב על טקסט כדי לערוך אותו ישירות.
+                    </p>
+                </div>
+                
+                <div id="sidebar-editor-header" class="hidden flex-shrink-0">
+                    <!-- Dynamic fixed header will be injected here -->
+                </div>
 
-            <div id="sidebar-content" class="hidden flex-grow overflow-y-auto pr-2 space-y-4 min-h-[200px]">
-                <!-- Dynamic content for editor mode will be injected here -->
-            </div>
+                <div id="sidebar-content" class="hidden flex-grow overflow-y-auto pr-2 space-y-4 min-h-[200px]">
+                    <!-- Dynamic content for editor mode will be injected here -->
+                </div>
 
-            <div id="template-actions" class="mb-6">
-                 <div class="py-4 border-t border-b border-slate-700 space-y-4">
-                    <div>
-                        <label for="template-name-input" class="block text-sm font-medium text-slate-300 mb-1">שם התבנית</label>
-                        <input type="text" id="template-name-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" placeholder="הכנס שם לתבנית...">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">מידות (בפיקסלים)</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="template-width-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 text-center" placeholder="רוחב" title="רוחב">
-                            <span class="text-slate-400 text-lg font-bold">x</span>
-                            <input type="number" id="template-height-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 text-center" placeholder="גובה" title="גובה">
+                <div id="template-actions" class="mb-6">
+                     <div class="py-4 border-t border-b border-slate-700 space-y-4">
+                        <div>
+                            <label for="template-name-input" class="block text-sm font-medium text-slate-300 mb-1">שם התבנית</label>
+                            <input type="text" id="template-name-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" placeholder="הכנס שם לתבנית...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">מידות (בפיקסלים)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="template-width-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 text-center" placeholder="רוחב" title="רוחב">
+                                <span class="text-slate-400 text-lg font-bold">x</span>
+                                <input type="number" id="template-height-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 text-center" placeholder="גובה" title="גובה">
+                            </div>
                         </div>
                     </div>
+
+                    <div class="py-4 border-b border-slate-700">
+                         <p class="text-slate-400 mb-4">בחר אלמנט מהשער כדי לערוך אותו, או הוסף אלמנט חדש.</p>
+                         <div class="space-y-3">
+                            <div class="flex gap-3">
+                                <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h14a1 1 0 010 2h-6v13a1 1 0 01-2 0V6H5a1 1 0 110-2z"/></svg>
+                                    <span>הוסף טקסט</span>
+                                </button>
+                                <button data-action="add-element" data-type="image" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <span>הוסף תמונה</span>
+                                </button>
+                            </div>
+                            <button data-action="add-element" data-type="clipping-shape" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">הוסף צורת חיתוך</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 space-y-3">
+                         <button id="change-template-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700">
+                            בחר תבנית
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="history-actions" class="mt-auto mt-4 py-4 flex justify-center gap-8">
+                    <button id="undo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בטל (Ctrl+Z)" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 15l-3-3m0 0l3-3m-3 3h8a5 5 0 010 10H6"></path>
+                        </svg>
+                    </button>
+                    <button id="redo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בצע שוב (Ctrl+Y)" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 15l3-3m0 0l-3-3m3 3H8a5 5 0 000 10h1"></path>
+                        </svg>
+                    </button>
                 </div>
 
-                <div class="py-4 border-b border-slate-700">
-                     <p class="text-slate-400 mb-4">בחר אלמנט מהשער כדי לערוך אותו, או הוסף אלמנט חדש.</p>
-                     <div class="space-y-3">
-                        <div class="flex gap-3">
-                            <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h14a1 1 0 010 2h-6v13a1 1 0 01-2 0V6H5a1 1 0 110-2z"/></svg>
-                                <span>הוסף טקסט</span>
-                            </button>
-                            <button data-action="add-element" data-type="image" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                <span>הוסף תמונה</span>
-                            </button>
-                        </div>
-                        <button data-action="add-element" data-type="clipping-shape" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">הוסף צורת חיתוך</button>
+                <div id="bottom-actions" class="pt-4">
+                     <div class="grid grid-cols-2 gap-3">
+                        <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700">
+                            שמור שינויים
+                        </button>
+                        <button id="export-image-btn" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">
+                            שמור כתמונה
+                        </button>
+                        <button id="import-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
+                            טען תבנית
+                        </button>
+                        <button id="export-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
+                            שמור כקובץ
+                        </button>
                     </div>
                 </div>
 
-                <div class="pt-4 space-y-3">
-                     <button id="change-template-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700">
-                        בחר תבנית
-                    </button>
+                 <input id="element-image-upload" type="file" accept="image/*" class="hidden" />
+                 <input id="import-template-input" type="file" accept=".json" class="hidden" />
+
+            </aside>
+
+            <!-- Magazine Cover -->
+            <main class="flex-1 flex items-center justify-center w-full">
+                <div id="magazine-cover" class="w-full max-w-[700px] shadow-2xl mx-auto">
+                    <div id="cover-boundary" class="relative w-full h-full overflow-hidden bg-slate-700">
+                        <!-- Cover content will be dynamically generated here -->
+                    </div>
                 </div>
-            </div>
-            
-            <div id="history-actions" class="mt-auto mt-4 py-4 flex justify-center gap-8">
-                <button id="undo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בטל (Ctrl+Z)" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 15l-3-3m0 0l3-3m-3 3h8a5 5 0 010 10H6"></path>
-                    </svg>
-                </button>
-                <button id="redo-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="בצע שוב (Ctrl+Y)" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 15l3-3m0 0l-3-3m3 3H8a5 5 0 000 10h1"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div id="bottom-actions" class="pt-4">
-                 <div class="grid grid-cols-2 gap-3">
-                    <button id="save-template-btn" class="sidebar-btn bg-green-600 hover:bg-green-700">
-                        שמור שינויים
-                    </button>
-                    <button id="export-image-btn" class="sidebar-btn bg-fuchsia-600 hover:bg-fuchsia-700">
-                        שמור כתמונה
-                    </button>
-                    <button id="import-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
-                        טען תבנית
-                    </button>
-                    <button id="export-template-btn" class="sidebar-btn bg-slate-600 hover:bg-slate-500">
-                        שמור כקובץ
-                    </button>
-                </div>
-            </div>
-
-             <input id="element-image-upload" type="file" accept="image/*" class="hidden" />
-             <input id="import-template-input" type="file" accept=".json" class="hidden" />
-
-        </aside>
-
-        <!-- Magazine Cover -->
-        <main class="flex-1 flex items-center justify-center w-full">
-            <div id="magazine-cover" class="w-full max-w-[700px] shadow-2xl mx-auto">
-                <div id="cover-boundary" class="relative w-full h-full overflow-hidden bg-slate-700">
-                    <!-- Cover content will be dynamically generated here -->
-                </div>
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
     
     <!-- Template Selection Modal -->
@@ -130,14 +132,21 @@
         </div>
     </div>
 
-    <!-- Image Editor Modal -->
-    <div id="image-editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="image-editor-title">
-        <div class="bg-slate-900 rounded-lg shadow-xl p-4 lg:p-8 w-full max-w-7xl h-[95vh] max-h-[95vh] flex flex-col relative">
+    <!-- Image Editor View -->
+    <div id="image-editor-view" class="hidden w-full h-screen bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="image-editor-title">
+        <div class="w-full h-full flex flex-col p-4 lg:p-8 relative">
             <div class="flex justify-between items-center mb-4">
-                <h2 id="image-editor-title" class="text-2xl font-bold text-white">עריכת תמונה</h2>
+                 <div class="flex items-center gap-4">
+                    <button id="image-editor-back-btn" title="חזרה" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" transform="scale(-1, 1) translate(-24, 0)"/>
+                        </svg>
+                    </button>
+                    <h2 id="image-editor-title" class="text-2xl font-bold text-white">עריכת תמונה</h2>
+                </div>
                 <button id="image-editor-close-btn" class="modal-close-btn-style" aria-label="Close modal">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>

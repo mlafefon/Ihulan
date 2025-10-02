@@ -48,6 +48,7 @@ class MagazineEditor {
 
     _cacheDom() {
         this.dom = {
+            mainEditorContainer: document.getElementById('main-editor-container'),
             magazineCover: document.getElementById('magazine-cover'),
             coverBoundary: document.getElementById('cover-boundary'),
             sidebar: document.getElementById('sidebar'),
