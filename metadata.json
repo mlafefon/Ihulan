@@ -2,6 +2,6 @@
   "name": "Magazine Cover Generator",
   "description": "An interactive application to design and create custom magazine covers. Users can upload images, edit text, choose templates, and save their creations.",
   "requestFramePermissions": [],
-  "version": "1.6.0",
+  "version": "1.6.1",
   "vibe by": "Galanti Amir"
 }

@@ -16,6 +16,41 @@ import { TemplateManager } from './js/managers/TemplateManager.js';
  * 1. MagazineEditor: The main application class that orchestrates all modules.
  */
 
+// --- UTILITY FUNCTIONS ---
+
+/**
+ * Handles the logic for a single-open accordion behavior within a container.
+ * @param {HTMLElement} toggleBtn The button element that was clicked.
+ */
+function toggleAccordionPanel(toggleBtn) {
+    const panelId = toggleBtn.getAttribute('aria-controls');
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    const container = toggleBtn.closest('.accordion-group')?.parentElement;
+    if (!container) return; // Required for closing others
+
+    const isCurrentlyOpen = panel.classList.contains('open');
+
+    // First, close all panels in the container
+    container.querySelectorAll('.accordion-toggle').forEach(btn => {
+        const p = document.getElementById(btn.getAttribute('aria-controls'));
+        if (p && p.classList.contains('open')) {
+            p.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+            btn.querySelector('.accordion-chevron')?.classList.remove('rotate-180');
+        }
+    });
+
+    // Then, if the clicked one was not already open, open it.
+    if (!isCurrentlyOpen) {
+        panel.classList.add('open');
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        toggleBtn.querySelector('.accordion-chevron')?.classList.add('rotate-180');
+    }
+}
+
+
 // --- MAIN CLASS: MagazineEditor ---
 class MagazineEditor {
     constructor() {
@@ -201,7 +236,7 @@ class MagazineEditor {
         [this.dom.sidebar, this.imageEditor.dom.modal].forEach(container => {
             container.addEventListener('click', e => {
                 const toggleBtn = e.target.closest('.accordion-toggle');
-                if (toggleBtn) this._toggleAccordionPanel(toggleBtn);
+                if (toggleBtn) toggleAccordionPanel(toggleBtn);
             });
         });
         
@@ -244,32 +279,6 @@ class MagazineEditor {
         } catch (error) {
             console.error("Failed to load metadata for version display:", error);
         }
-    }
-
-    _toggleAccordionPanel(toggleBtn) {
-        const panel = document.getElementById(toggleBtn.getAttribute('aria-controls'));
-        if (!panel) return;
-
-        const container = toggleBtn.closest('.space-y-1');
-        const isCurrentlyOpen = panel.classList.contains('open');
-
-        // Close other panels in the same container
-        if (container) {
-            container.querySelectorAll('.accordion-panel.open').forEach(p => {
-                const btn = p.previousElementSibling;
-                if (p !== panel && btn) {
-                    p.classList.remove('open');
-                    btn.setAttribute('aria-expanded', 'false');
-                    btn.querySelector('.accordion-chevron')?.classList.remove('rotate-180');
-                }
-            });
-        }
-        
-        // Toggle the current panel
-        const shouldOpen = !isCurrentlyOpen;
-        panel.classList.toggle('open', shouldOpen);
-        toggleBtn.setAttribute('aria-expanded', shouldOpen);
-        toggleBtn.querySelector('.accordion-chevron')?.classList.toggle('rotate-180', shouldOpen);
     }
 
     _handleSidebarMouseDown(e) {
@@ -863,7 +872,7 @@ class MagazineEditor {
                 const toggleBtn = openPanel.previousElementSibling;
                 if (toggleBtn && toggleBtn.matches('.accordion-toggle')) {
                     // This will toggle it to the closed state as it is currently open.
-                    this._toggleAccordionPanel(toggleBtn);
+                    toggleAccordionPanel(toggleBtn);
                 }
             }
             this._toggleLayerMenu();
