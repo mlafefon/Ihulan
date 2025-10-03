@@ -218,14 +218,19 @@ class MagazineEditor {
             const currentUser = this.user;
             const newUser = newSession?.user || null;
     
-            // We only care if the user's login state has actually changed.
             if (currentUser?.id !== newUser?.id) {
                 this.user = newUser;
                 this._renderAuthState();
     
-                // Reload templates since the user has changed.
-                await this.templateManager._loadAllTemplates();
-    
+                if (newUser) { // User logged IN
+                    // Reload templates from server to get user-specific ones.
+                    await this.templateManager._loadAllTemplates();
+                } else { // User logged OUT
+                    // Just filter out user templates from the existing in-memory list. No network call needed.
+                    this.templateManager.templates = this.templateManager.templates.filter(t => !t.isUserTemplate);
+                }
+                
+                // After templates are updated (either by fetch or filter), load the first available one.
                 if (this.templateManager.templates.length > 0) {
                     this.templateManager.loadTemplate(0);
                 } else {
@@ -378,6 +383,15 @@ class MagazineEditor {
         });
 
         document.addEventListener('selectionchange', this._handleSelectionChange.bind(this));
+
+        // Warn user about unsaved changes before leaving the page.
+        window.addEventListener('beforeunload', (e) => {
+            if (this.state.isDirty) {
+                // Standard way to trigger the browser's confirmation dialog.
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
     }
 
     async _displayVersion() {
