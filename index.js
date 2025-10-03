@@ -241,7 +241,14 @@ class MagazineEditor {
                     <span>התחברות עם גוגל</span>
                 </span>`;
             this.dom.authContainer.appendChild(loginBtn);
-            loginBtn.addEventListener('click', () => supabaseClient.auth.signInWithOAuth({ provider: 'google' }));
+            loginBtn.addEventListener('click', () => {
+                supabaseClient.auth.signInWithOAuth({ 
+                    provider: 'google',
+                    options: {
+                        redirectTo: location.href.split('#')[0]
+                    }
+                });
+            });
             this.dom.saveTemplateBtn.disabled = true;
         }
     }
