@@ -200,16 +200,26 @@ class MagazineEditor {
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             this.user = session?.user || null;
             this._renderAuthState();
-            
-            // Reload templates whenever auth state changes
+    
+            // Always refresh the template list from the database on auth change
             await this.templateManager._loadAllTemplates();
-            if (this.templateManager.templates.length > 0) {
-                 // Don't override user's work on login/logout, just refresh list
-                if (event === 'INITIAL_SESSION') {
-                   this.templateManager.loadTemplate(0);
+    
+            const hasTemplates = this.templateManager.templates.length > 0;
+            const isCanvasEmpty = this.state.elements.length === 0;
+    
+            if (hasTemplates) {
+                // If it's the first load OR the canvas is currently blank, load the first template.
+                // This handles the user's case of logging in and seeing a blank screen.
+                if (event === 'INITIAL_SESSION' || isCanvasEmpty) {
+                    this.templateManager.loadTemplate(0);
                 }
+                // Otherwise (e.g., user logs in/out while working), their work is preserved.
             } else {
-                 this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
+                // If there are no templates at all from the database, show a clear message.
+                this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות. בדוק את חיבור האינטרנט או נסה לרענן.</p>';
+                // Also clear the current state to ensure a consistent blank editor
+                this.state.elements = [];
+                this.render(); // Re-render to clear sidebar etc.
             }
         });
     }
