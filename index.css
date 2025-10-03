@@ -1,4 +1,5 @@
 
+
 *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 html { line-height: 1.5; -webkit-text-size-adjust: 100%; -moz-tab-size: 4; tab-size: 4; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }
 body { margin: 0; line-height: inherit; font-family: 'Heebo', sans-serif; }
@@ -667,6 +668,10 @@ button { text-transform: none; background-color: transparent; background-image: 
 .template-preview-container .draggable.element-type-image,
 .template-preview-container .draggable [data-role="text-content"] {
   cursor: pointer;
+}
+
+.template-preview-container .draggable:hover {
+    outline: none;
 }
 
 .template-preview-container {
