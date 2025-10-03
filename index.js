@@ -74,6 +74,7 @@ class MagazineEditor {
             isDirty: false,
         };
         this.user = null;
+        this.authViewState = 'default'; // 'default', 'email_login'
         this.interactionState = {}; // For drag/resize/rotate/color-picking
         this.interactionState.isTypingFontSize = false;
         this.interactionState.isTypingLetterSpacing = false;
@@ -200,69 +201,85 @@ class MagazineEditor {
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             this.user = session?.user || null;
             this._renderAuthState();
-    
-            // Always refresh the template list from the database on auth change
+            
+            // Reload templates whenever auth state changes
             await this.templateManager._loadAllTemplates();
-    
-            const hasTemplates = this.templateManager.templates.length > 0;
-            const isCanvasEmpty = this.state.elements.length === 0;
-    
-            if (hasTemplates) {
-                // If it's the first load OR the canvas is currently blank, load the first template.
-                // This handles the user's case of logging in and seeing a blank screen.
-                if (event === 'INITIAL_SESSION' || isCanvasEmpty) {
-                    this.templateManager.loadTemplate(0);
+            if (this.templateManager.templates.length > 0) {
+                 // Don't override user's work on login/logout, just refresh list
+                if (event === 'INITIAL_SESSION') {
+                   this.templateManager.loadTemplate(0);
                 }
-                // Otherwise (e.g., user logs in/out while working), their work is preserved.
             } else {
-                // If there are no templates at all from the database, show a clear message.
-                this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות. בדוק את חיבור האינטרנט או נסה לרענן.</p>';
-                // Also clear the current state to ensure a consistent blank editor
-                this.state.elements = [];
-                this.render(); // Re-render to clear sidebar etc.
+                 this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
             }
         });
     }
     
     _renderAuthState() {
         this.dom.authContainer.innerHTML = '';
+    
         if (this.user) {
             const userInfo = document.createElement('div');
             userInfo.className = 'auth-user-info';
+            // Use UI Avatars as a fallback for email users
+            const avatarUrl = this.user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.user.email)}&background=random&color=fff`;
             userInfo.innerHTML = `
                 <div class="user-details">
-                    <img src="${this.user.user_metadata.avatar_url}" alt="User Avatar" class="user-avatar">
+                    <img src="${avatarUrl}" alt="User Avatar" class="user-avatar">
                     <span class="user-email">${this.user.email}</span>
                 </div>
-                <button id="logout-btn" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="יציאה">
+                <button data-auth-action="logout" class="sidebar-btn-icon bg-slate-600 hover:bg-slate-500" title="יציאה">
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13v-2H7v-2h9V5l4 3.5-4 3.5zM20 3h-9c-1.103 0-2 .897-2 2v4h2V5h9v14h-9v-4H9v4c0 1.103.897 2 2 2h9c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2z"/></svg>
                 </button>
             `;
             this.dom.authContainer.appendChild(userInfo);
-            this.dom.authContainer.querySelector('#logout-btn').addEventListener('click', () => supabaseClient.auth.signOut());
             this.dom.saveTemplateBtn.disabled = false;
+            // Reset auth view state for when user logs out
+            this.authViewState = 'default';
         } else {
-            const loginBtn = document.createElement('button');
-            loginBtn.id = 'login-btn';
-            loginBtn.className = 'sidebar-btn bg-indigo-600 hover:bg-indigo-700';
-            loginBtn.innerHTML = `
-                <span class="flex items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A8 8 0 0 1 24 36c-4.418 0-8-3.582-8-8h-8c0 6.627 5.373 12 12 12z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C43.021 36.258 48 30.656 48 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
-                    <span>התחברות עם גוגל</span>
-                </span>`;
-            this.dom.authContainer.appendChild(loginBtn);
-            loginBtn.addEventListener('click', () => {
-                supabaseClient.auth.signInWithOAuth({ 
-                    provider: 'google',
-                    options: {
-                        redirectTo: location.href.split('#')[0]
-                    }
-                });
-            });
+            // Logged-out views
+            if (this.authViewState === 'email_login') {
+                this._renderEmailLoginView();
+            } else {
+                this._renderDefaultAuthView();
+            }
             this.dom.saveTemplateBtn.disabled = true;
         }
     }
 
+    _renderDefaultAuthView() {
+        this.dom.authContainer.innerHTML = `
+            <button data-auth-action="login_google" class="sidebar-btn bg-indigo-600 hover:bg-indigo-700 w-full flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A8 8 0 0 1 24 36c-4.418 0-8-3.582-8-8h-8c0 6.627 5.373 12 12 12z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C43.021 36.258 48 30.656 48 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                <span>המשך עם גוגל</span>
+            </button>
+            <div class="text-center mt-2">
+                <a href="#" data-auth-action="show_email_login" class="text-sm text-slate-400 hover:text-white">התחברות עם אימייל וסיסמה</a>
+            </div>
+        `;
+    }
+
+    _renderEmailLoginView() {
+        this.dom.authContainer.innerHTML = `
+            <form id="auth-email-form" class="space-y-3">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-slate-300 mb-1">אימייל</label>
+                    <input type="email" name="email" autocomplete="email" required class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-300 mb-1">סיסמה</label>
+                    <input type="password" name="password" autocomplete="current-password" required class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;">
+                </div>
+                <div class="pt-2">
+                    <button type="button" data-auth-action="login_email" class="sidebar-btn bg-blue-600 hover:bg-blue-700 w-full">התחברות</button>
+                </div>
+            </form>
+            <div class="text-center mt-4 border-t border-slate-700 pt-4">
+                <a href="#" data-auth-action="show_default_auth" class="text-sm text-slate-400 hover:text-white">חזרה</a>
+            </div>
+        `;
+    }
+    
     _bindEvents() {
         this.dom.elementImageUploadInput.addEventListener('change', this._handleElementImageUpload.bind(this));
         this.dom.changeTemplateBtn.addEventListener('click', this.templateManager._openTemplateModal.bind(this.templateManager));
@@ -297,7 +314,8 @@ class MagazineEditor {
         this.dom.saveTemplateBtn.addEventListener('click', () => this.templateManager.saveUserTemplate());
         this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
         this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
-
+        
+        this.dom.authContainer.addEventListener('click', this._handleAuthAction.bind(this));
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('change', this._handleSidebarInput.bind(this));
         this.dom.sidebar.addEventListener('click', this._handleSidebarClick.bind(this));
@@ -604,6 +622,72 @@ class MagazineEditor {
     }
         
     // --- Event Handlers ---
+
+    _handleAuthAction(e) {
+        const target = e.target.closest('[data-auth-action]');
+        if (!target) return;
+    
+        e.preventDefault();
+        const action = target.dataset.authAction;
+    
+        // Actions that don't need form data
+        switch(action) {
+            case 'logout':
+                supabaseClient.auth.signOut();
+                return;
+            case 'login_google':
+                supabaseClient.auth.signInWithOAuth({ 
+                    provider: 'google',
+                    options: {
+                        redirectTo: location.href.split('#')[0]
+                    }
+                });
+                return;
+            case 'show_default_auth':
+                this.authViewState = 'default';
+                this._renderAuthState();
+                return;
+            case 'show_email_login':
+                this.authViewState = 'email_login';
+                this._renderAuthState();
+                return;
+        }
+    
+        // Actions that DO need form data
+        const form = target.closest('form');
+        if (!form) return;
+    
+        const emailInput = form.querySelector('input[name="email"]');
+        const passwordInput = form.querySelector('input[name="password"]');
+    
+        const email = emailInput ? emailInput.value : null;
+        const password = passwordInput ? passwordInput.value : null;
+    
+        if (!email) {
+            alert('יש להזין כתובת אימייל.');
+            return;
+        }
+    
+        switch(action) {
+            case 'login_email':
+                if (!password) { alert('יש להזין סיסמה.'); return; }
+                this._performEmailLogin(email, password, target);
+                break;
+        }
+    }
+    
+    async _performEmailLogin(email, password, button) {
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+        
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        
+        if (error) alert(error.message);
+        
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
     
     _handleElementImageUpload(e) {
         const file = e.target.files && e.target.files[0];
