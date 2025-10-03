@@ -140,7 +140,7 @@ export class TemplateManager {
             alert('יש להזין שם לתבנית.');
             return;
         }
-
+    
         const template_data = {
             name,
             width: this.editor.state.coverWidth,
@@ -148,15 +148,43 @@ export class TemplateManager {
             backgroundColor: this.editor.state.backgroundColor,
             elements: this.editor.state.elements,
         };
-
-        const { error } = await this.supabase
+    
+        // Check if a template with this name already exists for the user
+        const { count, error: countError } = await this.supabase
             .from('templates')
-            .upsert({ 
-                user_id: this.editor.user.id,
-                name: name,
-                template_data: template_data 
-            }, { onConflict: 'user_id, name' });
-
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', this.editor.user.id)
+            .eq('name', name);
+    
+        if (countError) {
+            console.error('Error checking for existing template:', countError);
+            alert(`שגיאה בבדיקת התבנית: ${countError.message}`);
+            return;
+        }
+    
+        const templateExists = count > 0;
+        
+        let result;
+        if (templateExists) {
+            // If it exists, UPDATE just the template_data
+            result = await this.supabase
+                .from('templates')
+                .update({ template_data: template_data })
+                .eq('user_id', this.editor.user.id)
+                .eq('name', name);
+        } else {
+            // If it doesn't exist, INSERT a new record
+            result = await this.supabase
+                .from('templates')
+                .insert({
+                    user_id: this.editor.user.id,
+                    name: name,
+                    template_data: template_data
+                });
+        }
+        
+        const { error } = result;
+    
         if (error) {
             console.error('Error saving template to Supabase:', error);
             alert(`שגיאה בשמירת התבנית: ${error.message}`);
