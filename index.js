@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
@@ -87,7 +88,6 @@ class MagazineEditor {
         this.historyRecordingSuspended = false;
         this.isInteractingWithNativeColorPicker = false;
         
-
         this._init();
     }
 
@@ -185,7 +185,9 @@ class MagazineEditor {
         injectFontStyles();
         
         this._displayVersion();
-        this._initAuth();
+        
+        // This now handles both initial auth check and data load
+        await this._initAuthAndLoadData();
 
         this.resizeObserver = new ResizeObserver(() => {
             this.renderCover();
@@ -193,24 +195,51 @@ class MagazineEditor {
         this.resizeObserver.observe(this.dom.coverBoundary);
 
         this._bindEvents();
-        
-        // Initial load is now handled by the auth state change listener
     }
 
-    _initAuth() {
-        supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            this.user = session?.user || null;
-            this._renderAuthState();
-            
-            // Reload templates whenever auth state changes
-            await this.templateManager._loadAllTemplates();
-            if (this.templateManager.templates.length > 0) {
-                 // Don't override user's work on login/logout, just refresh list
-                if (event === 'INITIAL_SESSION') {
-                   this.templateManager.loadTemplate(0);
+    async _initAuthAndLoadData() {
+        // 1. Get current session. This will wait for Supabase to validate any existing session.
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        this.user = session?.user || null;
+        
+        // 2. Load templates based on the initial user state.
+        await this.templateManager._loadAllTemplates();
+    
+        // 3. Render the initial state of the app
+        if (this.templateManager.templates.length > 0) {
+            this.templateManager.loadTemplate(0);
+        } else {
+            this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
+        }
+        this._renderAuthState(); // Render auth UI *after* we know the user
+    
+        // 4. Set up listener for SUBSEQUENT auth changes (login/logout).
+        supabaseClient.auth.onAuthStateChange(async (_event, newSession) => {
+            const currentUser = this.user;
+            const newUser = newSession?.user || null;
+    
+            // We only care if the user's login state has actually changed.
+            if (currentUser?.id !== newUser?.id) {
+                this.user = newUser;
+                this._renderAuthState();
+    
+                // Reload templates since the user has changed.
+                await this.templateManager._loadAllTemplates();
+    
+                if (this.templateManager.templates.length > 0) {
+                    this.templateManager.loadTemplate(0);
+                } else {
+                    // Clear the canvas if no templates are available after the change.
+                    this.state.elements = [];
+                    this.state.backgroundColor = '#334155';
+                    this.state.templateName = 'תבנית חדשה';
+                    this.state.selectedElementId = null;
+                    this.state.inlineEditingElementId = null;
+                    this.dom.templateNameInput.value = 'תבנית חדשה';
+                    this.render();
+                    this.history.clear();
+                    this._setDirty(false);
                 }
-            } else {
-                 this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
             }
         });
     }
@@ -623,7 +652,7 @@ class MagazineEditor {
         
     // --- Event Handlers ---
 
-    _handleAuthAction(e) {
+    async _handleAuthAction(e) {
         const target = e.target.closest('[data-auth-action]');
         if (!target) return;
     
@@ -632,9 +661,14 @@ class MagazineEditor {
     
         // Actions that don't need form data
         switch(action) {
-            case 'logout':
-                supabaseClient.auth.signOut();
+            case 'logout': {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) {
+                    console.error('Error signing out:', error);
+                    alert(`שגיאה ביציאה מהחשבון: ${error.message}`);
+                }
                 return;
+            }
             case 'login_google':
                 supabaseClient.auth.signInWithOAuth({ 
                     provider: 'google',
