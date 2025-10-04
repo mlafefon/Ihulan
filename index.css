@@ -112,7 +112,7 @@ button { text-transform: none; background-color: transparent; background-image: 
 .resize-handle.n { top: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
 .resize-handle.s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
 .resize-handle.w { top: 50%; left: -6px; transform: translateY(-50%); cursor: ew-resize; }
-.resize-handle.e { top: 50%; right: -6px; transform: translateY(-50%); cursor: ew-resize; }
+.resize-handle.e { top: 50%; right: -6px; translateY(-50%); cursor: ew-resize; }
 
 .rotation-handle {
   top: -30px;
@@ -957,6 +957,7 @@ button { text-transform: none; background-color: transparent; background-image: 
   to { transform: rotate(360deg); }
 }
 
+.-mt-3\.5 { margin-top: -0.875rem; }
 .text-xs { font-size: 0.75rem; line-height: 1rem; }
 .text-slate-500 { color: #64748b; }
 
