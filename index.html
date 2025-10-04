@@ -37,13 +37,12 @@
                 </div>
 
                 <div id="template-actions" class="mb-6">
-                     <div class="py-4 border-t border-b border-slate-700 space-y-4">
-                        <div>
-                            <label for="template-name-input" class="block text-sm font-medium text-slate-300 mb-1">שם התבנית</label>
-                            <input type="text" id="template-name-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" placeholder="הכנס שם לתבנית...">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">מידות (בפיקסלים)</label>
+                     <div class="py-4">
+                        <div style="display: grid; grid-template-columns: auto 1fr; align-items: center; row-gap: 1rem; column-gap: 0.75rem;">
+                            <label for="template-name-input" class="text-sm font-medium text-slate-300 whitespace-nowrap" style="justify-self: start;">שם התבנית</label>
+                            <input type="text" id="template-name-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" placeholder="הכנס שם לתבנית..." style="text-align: left; direction: ltr;">
+                            
+                            <label class="text-sm font-medium text-slate-300 whitespace-nowrap" style="justify-self: start;">מידות</label>
                             <div class="flex items-center gap-2">
                                 <input type="number" id="template-width-input" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 text-center" placeholder="רוחב" title="רוחב">
                                 <span class="text-slate-400 text-lg font-bold">x</span>
@@ -52,8 +51,7 @@
                         </div>
                     </div>
 
-                    <div class="py-4 border-b border-slate-700">
-                         <p class="text-slate-400 mb-4">בחר אלמנט מהשער כדי לערוך אותו, או הוסף אלמנט חדש.</p>
+                    <div class="py-4 mt-2 border-b border-slate-700">
                          <div class="space-y-3">
                             <div class="flex gap-3">
                                 <button data-action="add-element" data-type="text" class="sidebar-btn bg-sky-600 hover:bg-sky-700 flex-1 flex items-center justify-center">
