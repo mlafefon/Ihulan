@@ -2,6 +2,7 @@
 
 
 
+
 import { renderCoverElement } from '../renderers.js';
 import { exportTemplate } from '../services.js';
 
@@ -97,10 +98,10 @@ export class TemplateManager {
                     // Immediately save the template so it appears in the list
                     this.saveUserTemplate();
                 } else {
-                    alert('קובץ התבנית אינו תקין או שאינו מכיל את כל המאפיינים הנדרשים.');
+                    this.editor.showNotification('קובץ התבנית אינו תקין או שאינו מכיל את כל המאפיינים הנדרשים.', 'error');
                 }
             } catch (error) {
-                alert('שגיאה בניתוח קובץ ה-JSON. יש לוודא שהקובץ תקין.');
+                this.editor.showNotification('שגיאה בניתוח קובץ ה-JSON. יש לוודא שהקובץ תקין.', 'error');
                 console.error("JSON Parse Error:", error);
             }
         };
@@ -136,13 +137,13 @@ export class TemplateManager {
     
     async saveUserTemplate() {
         if (!this.editor.user) {
-            alert('עליך להתחבר כדי לשמור תבניות.');
+            this.editor.showNotification('עליך להתחבר כדי לשמור תבניות.', 'error');
             return;
         }
         
         const name = this.editor.state.templateName.trim();
         if (!name) {
-            alert('יש להזין שם לתבנית.');
+            this.editor.showNotification('יש להזין שם לתבנית.', 'error');
             return;
         }
     
@@ -163,7 +164,7 @@ export class TemplateManager {
     
         if (countError) {
             console.error('Error checking for existing template:', countError);
-            alert(`שגיאה בבדיקת התבנית: ${countError.message}`);
+            this.editor.showNotification(`שגיאה בבדיקת התבנית: ${countError.message}`, 'error');
             return;
         }
     
@@ -193,9 +194,9 @@ export class TemplateManager {
     
         if (error) {
             console.error('Error saving template to Supabase:', error);
-            alert(`שגיאה בשמירת התבנית: ${error.message}`);
+            this.editor.showNotification(`שגיאה בשמירת התבנית: ${error.message}`, 'error');
         } else {
-            alert(`התבנית "${name}" נשמרה בהצלחה!`);
+            this.editor.showNotification(`התבנית "${name}" נשמרה בהצלחה!`, 'success');
             this.editor._setDirty(false);
             await this._loadAllTemplates();
         }
@@ -217,10 +218,10 @@ export class TemplateManager {
     
         if (error) {
             console.error('Error soft-deleting template from Supabase:', error);
-            alert(`שגיאה במחיקת התבנית: ${error.message}\n\nייתכן שהעמודה 'is_active' חסרה בטבלה, או שיש בעיית הרשאות.`);
+            this.editor.showNotification(`שגיאה במחיקת התבנית: ${error.message}`, 'error');
         } else {
             if (count > 0) {
-                alert(`התבנית "${templateName}" נמחקה בהצלחה.`);
+                this.editor.showNotification(`התבנית "${templateName}" נמחקה בהצלחה.`, 'success');
                 
                 const wasCurrentTemplate = this.editor.state.templateIndex === templateIndex;
                 
@@ -244,7 +245,7 @@ export class TemplateManager {
                     }
                 }
             } else {
-                alert(`לא נמצאה תבנית למחיקה בשם "${templateName}". ייתכן שהיא כבר נמחקה.`);
+                this.editor.showNotification(`לא נמצאה תבנית למחיקה בשם "${templateName}". ייתכן שהיא כבר נמחקה.`, 'error');
                 await this._loadAllTemplates();
                 this._openTemplateModal();
             }

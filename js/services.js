@@ -1,4 +1,5 @@
 
+
 import { getGoogleFontsUrl } from './fonts.js';
 
 export function exportTemplate(state) {
@@ -60,7 +61,7 @@ async function embedFontsInCss(cssText) {
 }
 
 
-export async function exportImage(button, coverBoundary, state) {
+export async function exportImage(button, coverBoundary, state, editor) {
     const originalButtonHTML = button.innerHTML;
     button.innerHTML = `
         <svg class="animate-spin h-5 w-5 -ml-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -100,7 +101,7 @@ export async function exportImage(button, coverBoundary, state) {
 
     } catch (error) {
         console.error('Error exporting image:', error);
-        alert('שגיאה בשמירת התמונה. ייתכן שיש בעיית רשת בטעינת הגופנים. נסה שוב.');
+        editor.showNotification('שגיאה בשמירת התמונה. ייתכן שיש בעיית רשת בטעינת הגופנים. נסה שוב.', 'error');
     } finally {
         if (selectedElDOM) selectedElDOM.classList.add('selected');
         button.innerHTML = originalButtonHTML;

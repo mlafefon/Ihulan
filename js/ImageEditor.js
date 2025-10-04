@@ -1,4 +1,5 @@
 
+
 export class ImageEditor {
     constructor(editor) {
         this.editor = editor;
@@ -608,7 +609,10 @@ export class ImageEditor {
     }
 
     async _applyBlur() {
-        if (!this.state || this.state.brushMaskPoints.length === 0) { alert('יש לסמן אזור חד תחילה.'); return; }
+        if (!this.state || this.state.brushMaskPoints.length === 0) {
+            this.editor.showNotification('יש לסמן אזור חד תחילה.', 'error');
+            return;
+        }
         
         const originalBtnHTML = this.dom.applyBlurBtn.innerHTML;
         this.dom.applyBlurBtn.disabled = true;

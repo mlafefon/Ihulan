@@ -2,6 +2,7 @@
 
 
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
@@ -96,6 +97,7 @@ class MagazineEditor {
     _cacheDom() {
         this.dom = {
             mainEditorContainer: document.getElementById('main-editor-container'),
+            notificationContainer: document.getElementById('notification-container'),
             magazineCover: document.getElementById('magazine-cover'),
             coverBoundary: document.getElementById('cover-boundary'),
             sidebar: document.getElementById('sidebar'),
@@ -349,7 +351,7 @@ class MagazineEditor {
 
         this.dom.saveTemplateBtn.addEventListener('click', () => this.templateManager.saveUserTemplate());
         this.dom.exportTemplateBtn.addEventListener('click', () => exportTemplate(this.state));
-        this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state));
+        this.dom.exportImageBtn.addEventListener('click', () => exportImage(this.dom.exportImageBtn, this.dom.coverBoundary, this.state, this));
         
         this.dom.authContainer.addEventListener('click', this._handleAuthAction.bind(this));
         this.dom.sidebar.addEventListener('input', this._handleSidebarInput.bind(this));
@@ -681,7 +683,7 @@ class MagazineEditor {
                 const { error } = await supabaseClient.auth.signOut();
                 if (error) {
                     console.error('Error signing out:', error);
-                    alert(`שגיאה ביציאה מהחשבון: ${error.message}`);
+                    this.showNotification(`שגיאה ביציאה מהחשבון: ${error.message}`, 'error');
                 }
                 return;
             }
@@ -714,13 +716,13 @@ class MagazineEditor {
         const password = passwordInput ? passwordInput.value : null;
     
         if (!email) {
-            alert('יש להזין כתובת אימייל.');
+            this.showNotification('יש להזין כתובת אימייל.', 'error');
             return;
         }
     
         switch(action) {
             case 'login_email':
-                if (!password) { alert('יש להזין סיסמה.'); return; }
+                if (!password) { this.showNotification('יש להזין סיסמה.', 'error'); return; }
                 this._performEmailLogin(email, password, target);
                 break;
         }
@@ -733,7 +735,7 @@ class MagazineEditor {
         
         const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
         
-        if (error) alert(error.message);
+        if (error) this.showNotification(error.message, 'error');
         
         button.disabled = false;
         button.innerHTML = originalHtml;
@@ -765,7 +767,7 @@ class MagazineEditor {
                 // Pass the pre-upload state to the editor so it can revert on cancel.
                 this.imageEditor.open(newOriginalSrc, img, selectedEl, preUploadState);
             };
-            img.onerror = () => alert("לא ניתן היה לטעון את קובץ התמונה.");
+            img.onerror = () => this.showNotification("לא ניתן היה לטעון את קובץ התמונה.", 'error');
             img.src = newOriginalSrc;
         };
         reader.readAsDataURL(file);
@@ -960,12 +962,12 @@ class MagazineEditor {
                 const oldSelectedId = this.state.selectedElementId;
                 const newId = String(value).trim();
                 if (!newId) {
-                    alert('ID של האלמנט לא יכול להיות ריק.');
+                    this.showNotification('ID של האלמנט לא יכול להיות ריק.', 'error');
                     target.value = oldSelectedId;
                     return;
                 }
                 if (newId !== oldSelectedId && this.state.elements.some(el => el.id === newId)) {
-                    alert('ה-ID של האלמנט חייב להיות ייחודי.');
+                    this.showNotification('ה-ID של האלמנט חייב להיות ייחודי.', 'error');
                     target.value = oldSelectedId;
                     return;
                 }
@@ -1282,7 +1284,7 @@ class MagazineEditor {
              this.imageEditor.open(source, img, el, null);
         }
         img.onerror = () => {
-            alert('לא ניתן לטעון את התמונה לעריכה.');
+            this.showNotification('לא ניתן לטעון את התמונה לעריכה.', 'error');
         };
         // This is crucial for cross-origin images stored in localStorage (dataURLs are fine)
         if (!source.startsWith('data:')) {
@@ -1838,7 +1840,7 @@ class MagazineEditor {
             });
 
         if (!targetImageEl) {
-            alert('יש למקם את צורת החיתוך מעל אלמנט של תמונה.');
+            this.showNotification('יש למקם את צורת החיתוך מעל אלמנט של תמונה.', 'error');
             return;
         }
 
@@ -1898,6 +1900,35 @@ class MagazineEditor {
         };
 
         img.src = targetImageEl.src;
+    }
+
+    showNotification(message, type = 'success', duration = 3000) {
+        const container = this.dom.notificationContainer;
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `notification-toast ${type}`;
+        toast.textContent = message;
+        toast.setAttribute('role', 'alert');
+
+        container.appendChild(toast);
+
+        // Trigger fade-in animation
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+        });
+
+        // Set timeout to fade out and remove
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => {
+                if (toast.parentElement) {
+                    toast.parentElement.removeChild(toast);
+                }
+            }, { once: true });
+        }, duration);
     }
 
 } // --- End of MagazineEditor class ---
