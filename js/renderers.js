@@ -1,4 +1,5 @@
 
+
 // --- Sidebar Control Builders (Private helpers) ---
 
 import { FONTS } from './fonts.js';
@@ -508,32 +509,14 @@ export function renderSidebar(selectedEl, sidebarEditorHeader, sidebarContent, t
     sidebarEditorHeader.innerHTML = '';
     sidebarContent.innerHTML = '';
 
-    // Reset classes to default state, which will be adjusted if needed
+    // Reset classes to default state
     sidebarContent.className = 'hidden flex-grow overflow-y-auto pr-2 space-y-4 min-h-[200px] sidebar-scroll-container';
 
     if (selectedEl) {
         sidebarEditorHeader.appendChild(_createEditorHeaderFragment(selectedEl));
         
-        if (selectedEl.type === 'text') {
-            // Special layout: flex column, scrollable accordion, fixed buttons
-            sidebarContent.className = 'hidden flex-grow flex flex-col overflow-hidden min-h-[200px]'; // Remove scroll/space classes from parent
-
-            const scrollablePart = document.createElement('div');
-            // This part gets the scrollbar and padding.
-            scrollablePart.className = 'flex-grow overflow-y-auto pr-2 min-h-0 sidebar-scroll-container'; 
-            scrollablePart.appendChild(_createTextEditorControls(selectedEl));
-
-            const fixedPart = document.createElement('div');
-            fixedPart.className = 'flex-shrink-0';
-            fixedPart.appendChild(_createLayerControls());
-            fixedPart.appendChild(_createDeleteButton());
-
-            sidebarContent.appendChild(scrollablePart);
-            sidebarContent.appendChild(fixedPart);
-        } else {
-             // Original behavior for other elements
-            sidebarContent.appendChild(_createEditorControlsFragment(selectedEl));
-        }
+        // Unified logic for all element types
+        sidebarContent.appendChild(_createEditorControlsFragment(selectedEl));
 
         sidebarEditorHeader.classList.remove('hidden');
         sidebarContent.classList.remove('hidden');

@@ -1,5 +1,6 @@
 
-import { renderCoverElement, renderSidebar } from './js/renderers.js';
+
+import { renderCoverElement, renderSidebar } from './renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
 import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
@@ -283,12 +284,12 @@ class MagazineEditor {
 
     _renderDefaultAuthView() {
         this.dom.authContainer.innerHTML = `
-            <button data-auth-action="login_google" class="sidebar-btn bg-indigo-600 hover:bg-indigo-700 w-full flex items-center justify-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A8 8 0 0 1 24 36c-4.418 0-8-3.582-8-8h-8c0 6.627 5.373 12 12 12z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C43.021 36.258 48 30.656 48 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
-                <span>המשך עם גוגל</span>
-            </button>
-            <div class="text-center mt-2">
-                <a href="#" data-auth-action="show_email_login" class="text-sm text-slate-400 hover:text-white">התחברות עם אימייל וסיסמה</a>
+            <div class="flex items-center gap-4">
+                <button data-auth-action="login_google" class="sidebar-btn bg-indigo-600 hover:bg-indigo-700 flex-1 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A8 8 0 0 1 24 36c-4.418 0-8-3.582-8-8h-8c0 6.627 5.373 12 12 12z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C43.021 36.258 48 30.656 48 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                    <span>המשך עם גוגל</span>
+                </button>
+                <a href="#" data-auth-action="show_email_login" class="text-sm text-slate-400 hover:text-white whitespace-nowrap">התחברות עם אימייל וסיסמה</a>
             </div>
         `;
     }
@@ -315,6 +316,7 @@ class MagazineEditor {
     }
     
     _bindEvents() {
+        this.dom.mainEditorContainer.addEventListener('click', this._handleMainContainerClick.bind(this));
         this.dom.elementImageUploadInput.addEventListener('change', this._handleElementImageUpload.bind(this));
         this.dom.changeTemplateBtn.addEventListener('click', this.templateManager._openTemplateModal.bind(this.templateManager));
         this.dom.importTemplateBtn.addEventListener('click', () => this.dom.importTemplateInput.click());
@@ -392,6 +394,22 @@ class MagazineEditor {
                 e.returnValue = '';
             }
         });
+    }
+
+    _handleMainContainerClick(e) {
+        // If the click originated inside the sidebar or the cover boundary, do nothing.
+        // Let their specific event handlers manage the interaction.
+        if (
+            this.dom.sidebar.contains(e.target) ||
+            this.dom.coverBoundary.contains(e.target)
+        ) {
+            return;
+        }
+    
+        // If an element is selected, deselect it. This will also reset the sidebar.
+        if (this.state.selectedElementId) {
+            this._deselectAndCleanup();
+        }
     }
 
     async _displayVersion() {
@@ -562,6 +580,11 @@ class MagazineEditor {
     _setDirty(isDirty) {
         this.state.isDirty = isDirty;
         this.dom.saveTemplateBtn.classList.toggle('dirty-button', isDirty);
+        // If the template becomes dirty, the user should be able to save it (as a new one or an update).
+        // This should only happen if they are logged in.
+        if (this.user && isDirty) {
+            this.dom.saveTemplateBtn.disabled = false;
+        }
     }
 
     _getStateSnapshot() {
@@ -773,6 +796,7 @@ class MagazineEditor {
     
     _deselectAndCleanup() {
         this._clearCustomSelection();
+        this.savedRange = null;
         const oldSelectedId = this.state.selectedElementId;
         if (oldSelectedId) {
             const oldElement = this.state.elements.find(el => el.id === oldSelectedId);
@@ -801,6 +825,9 @@ class MagazineEditor {
                 el[prop] = color;
                 this.renderCover();
             }
+        } else {
+            // Success: Redraw overlay to keep visual selection
+            setTimeout(() => this._drawCustomSelectionOverlay(), 10);
         }
 
         // Update color picker UI
@@ -837,6 +864,8 @@ class MagazineEditor {
                 el[prop] = color;
                 this.renderCover();
             }
+        } else {
+            setTimeout(() => this._drawCustomSelectionOverlay(), 10);
         }
     
         // Update picker UI
@@ -1386,6 +1415,7 @@ class MagazineEditor {
             }
             this.state.inlineEditingElementId = null;
             this._clearCustomSelection(); // Clear selection overlay and saved range
+            this.savedRange = null;
         };
         
         const onFocusOut = (e) => {
@@ -1431,49 +1461,50 @@ class MagazineEditor {
     }
     
     _clearCustomSelection() {
-        if (this.savedRange) this.savedRange = null;
-        
         const { draggableEl } = this._getEditorElements();
         if (draggableEl) {
             draggableEl.classList.remove('has-custom-selection');
         }
-        
         this.dom.coverBoundary.querySelectorAll('.selection-overlay').forEach(el => el.remove());
     }
     
     _drawCustomSelectionOverlay() {
         const { draggableEl, contentEl } = this._getEditorElements();
-        const selection = window.getSelection();
     
-        this._clearCustomSelection();
-    
-        if (!selection || selection.rangeCount === 0 || !draggableEl || !contentEl) {
-            if (selection && selection.rangeCount > 0) this.savedRange = selection.getRangeAt(0).cloneRange();
-            return;
+        // 1. Clear previous DOM overlays
+        this.dom.coverBoundary.querySelectorAll('.selection-overlay').forEach(el => el.remove());
+        if (draggableEl) {
+            draggableEl.classList.remove('has-custom-selection');
         }
-
-        const elementData = this.state.elements.find(el => el.id === this.state.selectedElementId);
-        if (!elementData) return;
-        
-        const range = selection.getRangeAt(0);
-        if (range.collapsed) {
-            this.savedRange = range.cloneRange();
+    
+        // 2. Check if there's a range to draw
+        if (!this.savedRange || !draggableEl || !contentEl) {
             return;
         }
     
-        this.savedRange = range.cloneRange();
+        const range = this.savedRange;
+        if (range.collapsed) { // Don't draw for a collapsed range (caret)
+            return;
+        }
+    
+        // 3. Draw based on savedRange
         draggableEl.classList.add('has-custom-selection');
-        
-        const coverBoundaryRect = this.dom.coverBoundary.getBoundingClientRect();
+    
+        // Critical part: To get rects, the range must be in the window selection.
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
         const rects = range.getClientRects();
     
+        const coverBoundaryRect = this.dom.coverBoundary.getBoundingClientRect();
+    
         let fontSize = 16;
-        if (range.startContainer) {
-            const container = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
-            if (container && container instanceof HTMLElement) {
-                fontSize = parseFloat(window.getComputedStyle(container).fontSize);
-            }
+        const container = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+        if (container && container instanceof HTMLElement) {
+            fontSize = parseFloat(window.getComputedStyle(container).fontSize);
         }
+    
+        const elementData = this.state.elements.find(el => el.id === this.state.selectedElementId);
     
         for (const rect of rects) {
             const overlay = document.createElement('div');
@@ -1486,7 +1517,10 @@ class MagazineEditor {
             overlay.style.top = `${rect.top - coverBoundaryRect.top + topOffset}px`;
             overlay.style.width = `${rect.width}px`;
             overlay.style.height = `${overlayHeight}px`;
-            overlay.style.transform = `rotate(${elementData.rotation}deg)`;
+            
+            if (elementData && elementData.rotation) {
+                overlay.style.transform = `rotate(${elementData.rotation}deg)`;
+            }
     
             this.dom.coverBoundary.appendChild(overlay);
         }
@@ -1561,6 +1595,7 @@ class MagazineEditor {
         const selection = window.getSelection();
         if (!this.state.inlineEditingElementId) {
             this._clearCustomSelection();
+            this.savedRange = null;
             return;
         }
 
@@ -1569,17 +1604,22 @@ class MagazineEditor {
         const isSelectionInEditor = editorEl && selection.rangeCount > 0 && selection.anchorNode && editorEl.contains(selection.anchorNode);
 
         if (isSelectionInEditor) {
-            if (!selection.isCollapsed) {
-                this._drawCustomSelectionOverlay();
-            } else {
+            const range = selection.getRangeAt(0);
+            this.savedRange = range.cloneRange();
+            if (range.collapsed) {
                 this._clearCustomSelection();
+            } else {
+                this._drawCustomSelectionOverlay();
             }
             this._updateSidebarWithSelectionStyles();
         } else {
             if (this.dom.sidebar.contains(document.activeElement)) {
+                // Focus is on the sidebar, don't clear the saved range, just the visual overlay
+                this._clearCustomSelection();
                 return;
             }
             this._clearCustomSelection();
+            this.savedRange = null;
             this.updateSidebarValues();
         }
     }
@@ -1679,6 +1719,7 @@ class MagazineEditor {
 
     _addElement(type) {
         this._clearCustomSelection();
+        this.savedRange = null;
         const newEl = type === 'text' ? {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
@@ -1702,6 +1743,7 @@ class MagazineEditor {
 
     _renderDeleteConfirmation() {
         this._clearCustomSelection();
+        this.savedRange = null;
         this.dom.sidebarContent.innerHTML = '';
         const container = document.createElement('div');
         container.className = 'p-4 bg-slate-900 rounded-lg text-center border border-red-500/50';
@@ -1718,6 +1760,7 @@ class MagazineEditor {
 
     _deleteSelectedElement() {
         this._clearCustomSelection();
+        this.savedRange = null;
         this.state.elements = this.state.elements.filter(el => el.id !== this.state.selectedElementId);
         this.state.selectedElementId = null;
         this._setDirty(true);
@@ -1737,6 +1780,7 @@ class MagazineEditor {
         if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
             this.state.inlineEditingElementId = null;
             this._clearCustomSelection();
+            this.savedRange = null;
         }
 
         if (oldElementData && newElementData && oldElementData.type === newElementData.type) {

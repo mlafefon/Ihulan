@@ -1,4 +1,8 @@
 
+
+
+
+
 import { renderCoverElement } from '../renderers.js';
 import { exportTemplate } from '../services.js';
 
@@ -71,12 +75,6 @@ export class TemplateManager {
         this.editor.dom.templateHeightInput.value = this.editor.state.coverHeight;
 
         this.editor._updateCoverDimensions();
-        
-        if (this.editor.user) {
-            // When loading a system template, saving is disabled until a change is made.
-            // When loading a user's own template, they can save over it even if it's not "dirty".
-            this.editor.dom.saveTemplateBtn.disabled = !template.isUserTemplate;
-        }
         
         this.editor._setDirty(false);
         this.editor.history.clear();
