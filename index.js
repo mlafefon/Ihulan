@@ -1,10 +1,14 @@
 
 
 
+
+
+
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
-import { exportTemplate, exportImage } from './js/services.js';
-import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
+import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
+import { loadGoogleFonts, injectFontStyles, getGoogleFontsUrl } from './js/fonts.js';
 import { InteractionManager } from './js/managers/InteractionManager.js';
 import { HistoryManager } from './js/managers/HistoryManager.js';
 import { TemplateManager } from './js/managers/TemplateManager.js';
@@ -1815,33 +1819,91 @@ class MagazineEditor {
         }
     }
     
-    // --- End Color Swap ---
-
-    _performClip() {
+    async _performClip() {
         const clipEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         if (!clipEl) return;
-
-        const targetImageEl = [...this.state.elements]
+    
+        const targetEl = [...this.state.elements]
             .reverse()
             .find(el => {
-                if (el.type !== 'image' || el.id === clipEl.id || !el.src) return false;
-
+                if ((el.type !== 'image' && el.type !== 'text') || el.id === clipEl.id) return false;
+                if (el.type === 'image' && !el.src) return false;
+    
                 const clipRect = { x: clipEl.position.x, y: clipEl.position.y, width: clipEl.width, height: clipEl.height };
-                const imageRect = { x: el.position.x, y: el.position.y, width: el.width, height: el.height };
+                const elRect = { x: el.position.x, y: el.position.y, width: el.width, height: el.height };
                 
                 return (
-                    clipRect.x < imageRect.x + imageRect.width &&
-                    clipRect.x + clipRect.width > imageRect.x &&
-                    clipRect.y < imageRect.y + imageRect.height &&
-                    clipRect.y + clipRect.height > imageRect.y
+                    clipRect.x < elRect.x + elRect.width &&
+                    clipRect.x + clipRect.width > elRect.x &&
+                    clipRect.y < elRect.y + elRect.height &&
+                    clipRect.y + elRect.height > elRect.y
                 );
             });
-
-        if (!targetImageEl) {
-            this.showNotification('יש למקם את צורת החיתוך מעל אלמנט של תמונה.', 'error');
+    
+        if (!targetEl) {
+            this.showNotification('יש למקם את צורת החיתוך מעל אלמנט של תמונה או טקסט.', 'error');
             return;
         }
+    
+        const preClipState = this._getStateSnapshot();
+        let imageToProcessSrc;
+        let elementToClip = targetEl;
+    
+        if (targetEl.type === 'text') {
+            const textDomEl = this.dom.coverBoundary.querySelector(`[data-id="${targetEl.id}"]`);
+            const textContentContainer = textDomEl.querySelector('[data-role="text-container"]');
+            if (!textContentContainer) {
+                this.showNotification('שגיאה: לא נמצא תוכן הטקסט לעיבוד.', 'error');
+                return;
+            }
 
+            const currentCoverWidth = this.dom.coverBoundary.offsetWidth;
+            const scale = (this.state.coverWidth > 0 && currentCoverWidth > 0) ? currentCoverWidth / this.state.coverWidth : 1;
+            const modelWidth = textDomEl.offsetWidth / scale;
+            const modelHeight = textDomEl.offsetHeight / scale;
+    
+            try {
+                const wasSelected = textDomEl.classList.contains('selected');
+                if(wasSelected) textDomEl.classList.remove('selected');
+
+                const originalFontCSS = await fetch(getGoogleFontsUrl()).then(res => res.text());
+                const embeddedFontCSS = await embedFontsInCss(originalFontCSS);
+                const options = {
+                    pixelRatio: 2,
+                    fontEmbedCSS: embeddedFontCSS,
+                    cacheBust: true,
+                    backgroundColor: 'transparent',
+                };
+                
+                const canvas = await htmlToImage.toCanvas(textContentContainer, options);
+                const dataUrl = canvas.toDataURL('image/png', 1.0);
+    
+                if(wasSelected) textDomEl.classList.add('selected');
+    
+                const targetElIndex = this.state.elements.findIndex(e => e.id === targetEl.id);
+                if (targetElIndex === -1) return;
+    
+                const newImageEl = {
+                    id: targetEl.id, type: 'image', src: dataUrl, originalSrc: dataUrl,
+                    position: { ...targetEl.position }, 
+                    width: modelWidth, 
+                    height: modelHeight,
+                    rotation: targetEl.rotation, cropData: null,
+                };
+    
+                this.state.elements.splice(targetElIndex, 1, newImageEl);
+                elementToClip = newImageEl;
+                imageToProcessSrc = dataUrl;
+    
+            } catch (error) {
+                console.error("Failed to convert text to image:", error);
+                this.showNotification('שגיאה בהמרת טקסט לתמונה.', 'error');
+                return;
+            }
+        } else {
+            imageToProcessSrc = targetEl.src;
+        }
+    
         const img = new Image();
         img.crossOrigin = "Anonymous";
         img.onload = () => {
@@ -1849,17 +1911,22 @@ class MagazineEditor {
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             const ctx = canvas.getContext('2d');
-
-            // Calculate clipping shape's position relative to the image
-            const scaleX = img.naturalWidth / targetImageEl.width;
-            const scaleY = img.naturalHeight / targetImageEl.height;
-
-            const clipRelativeX = (clipEl.position.x - targetImageEl.position.x) * scaleX;
-            const clipRelativeY = (clipEl.position.y - targetImageEl.position.y) * scaleY;
+    
+            const scaleX = img.naturalWidth / elementToClip.width;
+            const scaleY = img.naturalHeight / elementToClip.height;
+    
+            const clipRelativeX = (clipEl.position.x - elementToClip.position.x) * scaleX;
+            const clipRelativeY = (clipEl.position.y - elementToClip.position.y) * scaleY;
             const clipRelativeWidth = clipEl.width * scaleX;
             const clipRelativeHeight = clipEl.height * scaleY;
+    
+            // First, draw the entire image onto the canvas.
+            ctx.drawImage(img, 0, 0);
 
-            // Define the clipping path
+            // Then, set the composite operation to 'destination-out'.
+            // This makes the existing content (the image) transparent where a new shape is drawn.
+            ctx.globalCompositeOperation = 'destination-out';
+    
             ctx.beginPath();
             if (clipEl.shape === 'ellipse') {
                 ctx.ellipse(
@@ -1871,33 +1938,26 @@ class MagazineEditor {
                 );
             }
             ctx.closePath();
-            ctx.clip(); // Apply the clip
+            // Fill the shape to "punch out" the elliptical area from the image.
+            ctx.fill();
 
-            // Draw the image inside the clipped region
-            ctx.drawImage(img, 0, 0);
-
+            // Reset the composite operation to default for good practice.
+            ctx.globalCompositeOperation = 'source-over';
+    
             const clippedDataUrl = canvas.toDataURL('image/png');
-
-            // Update the target image element
-            const preClipState = this._getStateSnapshot();
-            const imageToUpdate = this.state.elements.find(e => e.id === targetImageEl.id);
+            const imageToUpdate = this.state.elements.find(e => e.id === elementToClip.id);
             if (imageToUpdate) {
                 imageToUpdate.src = clippedDataUrl;
-                // We might want to reset cropData as it's a new image source
-                imageToUpdate.cropData = null; 
+                imageToUpdate.cropData = null;
             }
-
-            // Remove the clipping shape element
+    
             this.state.elements = this.state.elements.filter(el => el.id !== clipEl.id);
-
-            // Update selection and re-render
-            this.state.selectedElementId = targetImageEl.id;
+            this.state.selectedElementId = elementToClip.id;
             this.history.addState(preClipState);
             this._setDirty(true);
             this.render();
         };
-
-        img.src = targetImageEl.src;
+        img.src = imageToProcessSrc;
     }
 
     showNotification(message, type = 'success', duration = 3000) {

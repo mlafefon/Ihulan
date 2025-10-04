@@ -1,5 +1,6 @@
 
 
+
 import { getGoogleFontsUrl } from './fonts.js';
 
 export function exportTemplate(state) {
@@ -20,7 +21,7 @@ export function exportTemplate(state) {
 }
 
 // Helper to fetch and Base64-encode a resource. This is crucial for embedding fonts.
-async function resourceToDataURL(url) {
+export async function resourceToDataURL(url) {
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -40,7 +41,7 @@ async function resourceToDataURL(url) {
 }
 
 // Helper to find all font URLs in a CSS file and replace them with embedded Base64 data.
-async function embedFontsInCss(cssText) {
+export async function embedFontsInCss(cssText) {
     // Regex to find font URLs, handling optional quotes.
     const fontUrlRegex = /url\((['"]?)(https:\/\/fonts\.gstatic\.com\/[^'"]+)\1\)/g;
     

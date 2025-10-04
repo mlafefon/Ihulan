@@ -1,5 +1,7 @@
 
 
+
+
 // --- Sidebar Control Builders (Private helpers) ---
 
 import { FONTS } from './fonts.js';
@@ -498,7 +500,7 @@ export function renderCoverElement(el, state, scale = 1, zIndex) {
         domEl.classList.add('clipping-shape');
         const instructionText = document.createElement('div');
         instructionText.className = 'clipping-shape-instructions';
-        instructionText.textContent = 'מקם את האליפסה מעל ראש הדמות, כדי לחתוך את הכותרת שמסתירה.';
+        instructionText.textContent = 'מקם את הצורה כדי ליצור אזור שקוף בתמונה או בטקסט שמתחתיה.';
         domEl.appendChild(instructionText);
     }
     if (el.id === state.selectedElementId && scale === 1) domEl.appendChild(_createTransformHandles());

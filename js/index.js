@@ -1,9 +1,14 @@
 
 
+
+
+
+
+
 import { renderCoverElement, renderSidebar } from './renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
-import { exportTemplate, exportImage } from './js/services.js';
-import { loadGoogleFonts, injectFontStyles } from './js/fonts.js';
+import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
+import { loadGoogleFonts, injectFontStyles, getGoogleFontsUrl } from './js/fonts.js';
 import { InteractionManager } from './js/managers/InteractionManager.js';
 import { HistoryManager } from './js/managers/HistoryManager.js';
 import { TemplateManager } from './js/managers/TemplateManager.js';
@@ -1415,7 +1420,6 @@ class MagazineEditor {
             }
             this.state.inlineEditingElementId = null;
             this._clearCustomSelection(); // Clear selection overlay and saved range
-            this.savedRange = null;
         };
         
         const onFocusOut = (e) => {
@@ -1461,50 +1465,49 @@ class MagazineEditor {
     }
     
     _clearCustomSelection() {
+        if (this.savedRange) this.savedRange = null;
+        
         const { draggableEl } = this._getEditorElements();
         if (draggableEl) {
             draggableEl.classList.remove('has-custom-selection');
         }
+        
         this.dom.coverBoundary.querySelectorAll('.selection-overlay').forEach(el => el.remove());
     }
     
     _drawCustomSelectionOverlay() {
         const { draggableEl, contentEl } = this._getEditorElements();
-    
-        // 1. Clear previous DOM overlays
-        this.dom.coverBoundary.querySelectorAll('.selection-overlay').forEach(el => el.remove());
-        if (draggableEl) {
-            draggableEl.classList.remove('has-custom-selection');
-        }
-    
-        // 2. Check if there's a range to draw
-        if (!this.savedRange || !draggableEl || !contentEl) {
-            return;
-        }
-    
-        const range = this.savedRange;
-        if (range.collapsed) { // Don't draw for a collapsed range (caret)
-            return;
-        }
-    
-        // 3. Draw based on savedRange
-        draggableEl.classList.add('has-custom-selection');
-    
-        // Critical part: To get rects, the range must be in the window selection.
         const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+    
+        this._clearCustomSelection();
+    
+        if (!selection || selection.rangeCount === 0 || !draggableEl || !contentEl) {
+            if (selection && selection.rangeCount > 0) this.savedRange = selection.getRangeAt(0).cloneRange();
+            return;
+        }
+
+        const elementData = this.state.elements.find(el => el.id === this.state.selectedElementId);
+        if (!elementData) return;
+        
+        const range = selection.getRangeAt(0);
+        if (range.collapsed) {
+            this.savedRange = range.cloneRange();
+            return;
+        }
+    
+        this.savedRange = range.cloneRange();
+        draggableEl.classList.add('has-custom-selection');
+        
+        const coverBoundaryRect = this.dom.coverBoundary.getBoundingClientRect();
         const rects = range.getClientRects();
     
-        const coverBoundaryRect = this.dom.coverBoundary.getBoundingClientRect();
-    
         let fontSize = 16;
-        const container = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
-        if (container && container instanceof HTMLElement) {
-            fontSize = parseFloat(window.getComputedStyle(container).fontSize);
+        if (range.startContainer) {
+            const container = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+            if (container && container instanceof HTMLElement) {
+                fontSize = parseFloat(window.getComputedStyle(container).fontSize);
+            }
         }
-    
-        const elementData = this.state.elements.find(el => el.id === this.state.selectedElementId);
     
         for (const rect of rects) {
             const overlay = document.createElement('div');
@@ -1517,10 +1520,7 @@ class MagazineEditor {
             overlay.style.top = `${rect.top - coverBoundaryRect.top + topOffset}px`;
             overlay.style.width = `${rect.width}px`;
             overlay.style.height = `${overlayHeight}px`;
-            
-            if (elementData && elementData.rotation) {
-                overlay.style.transform = `rotate(${elementData.rotation}deg)`;
-            }
+            overlay.style.transform = `rotate(${elementData.rotation}deg)`;
     
             this.dom.coverBoundary.appendChild(overlay);
         }
@@ -1595,7 +1595,6 @@ class MagazineEditor {
         const selection = window.getSelection();
         if (!this.state.inlineEditingElementId) {
             this._clearCustomSelection();
-            this.savedRange = null;
             return;
         }
 
@@ -1604,22 +1603,17 @@ class MagazineEditor {
         const isSelectionInEditor = editorEl && selection.rangeCount > 0 && selection.anchorNode && editorEl.contains(selection.anchorNode);
 
         if (isSelectionInEditor) {
-            const range = selection.getRangeAt(0);
-            this.savedRange = range.cloneRange();
-            if (range.collapsed) {
-                this._clearCustomSelection();
-            } else {
+            if (!selection.isCollapsed) {
                 this._drawCustomSelectionOverlay();
+            } else {
+                this._clearCustomSelection();
             }
             this._updateSidebarWithSelectionStyles();
         } else {
             if (this.dom.sidebar.contains(document.activeElement)) {
-                // Focus is on the sidebar, don't clear the saved range, just the visual overlay
-                this._clearCustomSelection();
                 return;
             }
             this._clearCustomSelection();
-            this.savedRange = null;
             this.updateSidebarValues();
         }
     }
@@ -1719,7 +1713,6 @@ class MagazineEditor {
 
     _addElement(type) {
         this._clearCustomSelection();
-        this.savedRange = null;
         const newEl = type === 'text' ? {
             id: `el_${Date.now()}`, type: 'text', text: 'טקסט חדש',
             position: { x: 50, y: 100 }, fontSize: 48, color: '#FFFFFF',
@@ -1743,7 +1736,6 @@ class MagazineEditor {
 
     _renderDeleteConfirmation() {
         this._clearCustomSelection();
-        this.savedRange = null;
         this.dom.sidebarContent.innerHTML = '';
         const container = document.createElement('div');
         container.className = 'p-4 bg-slate-900 rounded-lg text-center border border-red-500/50';
@@ -1760,7 +1752,6 @@ class MagazineEditor {
 
     _deleteSelectedElement() {
         this._clearCustomSelection();
-        this.savedRange = null;
         this.state.elements = this.state.elements.filter(el => el.id !== this.state.selectedElementId);
         this.state.selectedElementId = null;
         this._setDirty(true);
@@ -1780,7 +1771,6 @@ class MagazineEditor {
         if (this.state.inlineEditingElementId && this.state.inlineEditingElementId !== elementId) {
             this.state.inlineEditingElementId = null;
             this._clearCustomSelection();
-            this.savedRange = null;
         }
 
         if (oldElementData && newElementData && oldElementData.type === newElementData.type) {
@@ -1857,33 +1847,91 @@ class MagazineEditor {
         }
     }
     
-    // --- End Color Swap ---
-
-    _performClip() {
+    async _performClip() {
         const clipEl = this.state.elements.find(el => el.id === this.state.selectedElementId);
         if (!clipEl) return;
-
-        const targetImageEl = [...this.state.elements]
+    
+        const targetEl = [...this.state.elements]
             .reverse()
             .find(el => {
-                if (el.type !== 'image' || el.id === clipEl.id || !el.src) return false;
-
+                if ((el.type !== 'image' && el.type !== 'text') || el.id === clipEl.id) return false;
+                if (el.type === 'image' && !el.src) return false;
+    
                 const clipRect = { x: clipEl.position.x, y: clipEl.position.y, width: clipEl.width, height: clipEl.height };
-                const imageRect = { x: el.position.x, y: el.position.y, width: el.width, height: el.height };
+                const elRect = { x: el.position.x, y: el.position.y, width: el.width, height: el.height };
                 
                 return (
-                    clipRect.x < imageRect.x + imageRect.width &&
-                    clipRect.x + clipRect.width > imageRect.x &&
-                    clipRect.y < imageRect.y + imageRect.height &&
-                    clipRect.y + clipRect.height > imageRect.y
+                    clipRect.x < elRect.x + elRect.width &&
+                    clipRect.x + clipRect.width > elRect.x &&
+                    clipRect.y < elRect.y + elRect.height &&
+                    clipRect.y + elRect.height > elRect.y
                 );
             });
-
-        if (!targetImageEl) {
-            this.showNotification('יש למקם את צורת החיתוך מעל אלמנט של תמונה.', 'error');
+    
+        if (!targetEl) {
+            this.showNotification('יש למקם את צורת החיתוך מעל אלמנט של תמונה או טקסט.', 'error');
             return;
         }
+    
+        const preClipState = this._getStateSnapshot();
+        let imageToProcessSrc;
+        let elementToClip = targetEl;
+    
+        if (targetEl.type === 'text') {
+            const textDomEl = this.dom.coverBoundary.querySelector(`[data-id="${targetEl.id}"]`);
+            const textContentContainer = textDomEl.querySelector('[data-role="text-container"]');
+            if (!textContentContainer) {
+                this.showNotification('שגיאה: לא נמצא תוכן הטקסט לעיבוד.', 'error');
+                return;
+            }
 
+            const currentCoverWidth = this.dom.coverBoundary.offsetWidth;
+            const scale = (this.state.coverWidth > 0 && currentCoverWidth > 0) ? currentCoverWidth / this.state.coverWidth : 1;
+            const modelWidth = textDomEl.offsetWidth / scale;
+            const modelHeight = textDomEl.offsetHeight / scale;
+    
+            try {
+                const wasSelected = textDomEl.classList.contains('selected');
+                if(wasSelected) textDomEl.classList.remove('selected');
+
+                const originalFontCSS = await fetch(getGoogleFontsUrl()).then(res => res.text());
+                const embeddedFontCSS = await embedFontsInCss(originalFontCSS);
+                const options = {
+                    pixelRatio: 2,
+                    fontEmbedCSS: embeddedFontCSS,
+                    cacheBust: true,
+                    backgroundColor: 'transparent',
+                };
+                
+                const canvas = await htmlToImage.toCanvas(textContentContainer, options);
+                const dataUrl = canvas.toDataURL('image/png', 1.0);
+    
+                if(wasSelected) textDomEl.classList.add('selected');
+    
+                const targetElIndex = this.state.elements.findIndex(e => e.id === targetEl.id);
+                if (targetElIndex === -1) return;
+    
+                const newImageEl = {
+                    id: targetEl.id, type: 'image', src: dataUrl, originalSrc: dataUrl,
+                    position: { ...targetEl.position }, 
+                    width: modelWidth, 
+                    height: modelHeight,
+                    rotation: targetEl.rotation, cropData: null,
+                };
+    
+                this.state.elements.splice(targetElIndex, 1, newImageEl);
+                elementToClip = newImageEl;
+                imageToProcessSrc = dataUrl;
+    
+            } catch (error) {
+                console.error("Failed to convert text to image:", error);
+                this.showNotification('שגיאה בהמרת טקסט לתמונה.', 'error');
+                return;
+            }
+        } else {
+            imageToProcessSrc = targetEl.src;
+        }
+    
         const img = new Image();
         img.crossOrigin = "Anonymous";
         img.onload = () => {
@@ -1891,17 +1939,22 @@ class MagazineEditor {
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             const ctx = canvas.getContext('2d');
-
-            // Calculate clipping shape's position relative to the image
-            const scaleX = img.naturalWidth / targetImageEl.width;
-            const scaleY = img.naturalHeight / targetImageEl.height;
-
-            const clipRelativeX = (clipEl.position.x - targetImageEl.position.x) * scaleX;
-            const clipRelativeY = (clipEl.position.y - targetImageEl.position.y) * scaleY;
+    
+            const scaleX = img.naturalWidth / elementToClip.width;
+            const scaleY = img.naturalHeight / elementToClip.height;
+    
+            const clipRelativeX = (clipEl.position.x - elementToClip.position.x) * scaleX;
+            const clipRelativeY = (clipEl.position.y - elementToClip.position.y) * scaleY;
             const clipRelativeWidth = clipEl.width * scaleX;
             const clipRelativeHeight = clipEl.height * scaleY;
+    
+            // First, draw the entire image onto the canvas.
+            ctx.drawImage(img, 0, 0);
 
-            // Define the clipping path
+            // Then, set the composite operation to 'destination-out'.
+            // This makes the existing content (the image) transparent where a new shape is drawn.
+            ctx.globalCompositeOperation = 'destination-out';
+    
             ctx.beginPath();
             if (clipEl.shape === 'ellipse') {
                 ctx.ellipse(
@@ -1913,33 +1966,26 @@ class MagazineEditor {
                 );
             }
             ctx.closePath();
-            ctx.clip(); // Apply the clip
+            // Fill the shape to "punch out" the elliptical area from the image.
+            ctx.fill();
 
-            // Draw the image inside the clipped region
-            ctx.drawImage(img, 0, 0);
-
+            // Reset the composite operation to default for good practice.
+            ctx.globalCompositeOperation = 'source-over';
+    
             const clippedDataUrl = canvas.toDataURL('image/png');
-
-            // Update the target image element
-            const preClipState = this._getStateSnapshot();
-            const imageToUpdate = this.state.elements.find(e => e.id === targetImageEl.id);
+            const imageToUpdate = this.state.elements.find(e => e.id === elementToClip.id);
             if (imageToUpdate) {
                 imageToUpdate.src = clippedDataUrl;
-                // We might want to reset cropData as it's a new image source
-                imageToUpdate.cropData = null; 
+                imageToUpdate.cropData = null;
             }
-
-            // Remove the clipping shape element
+    
             this.state.elements = this.state.elements.filter(el => el.id !== clipEl.id);
-
-            // Update selection and re-render
-            this.state.selectedElementId = targetImageEl.id;
+            this.state.selectedElementId = elementToClip.id;
             this.history.addState(preClipState);
             this._setDirty(true);
             this.render();
         };
-
-        img.src = targetImageEl.src;
+        img.src = imageToProcessSrc;
     }
 
     showNotification(message, type = 'success', duration = 3000) {
