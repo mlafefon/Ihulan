@@ -1,5 +1,7 @@
 
 
+
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
@@ -321,7 +323,7 @@ class MagazineEditor {
         this.dom.importTemplateInput.addEventListener('change', this.templateManager._handleTemplateImport.bind(this.templateManager));
         this.dom.modalCloseBtn.addEventListener('click', this.templateManager._closeTemplateModal.bind(this.templateManager));
         this.dom.templateModalOverlay.addEventListener('click', this.templateManager._closeTemplateModal.bind(this.templateManager));
-        this.dom.templateGrid.addEventListener('click', this.templateManager._handleTemplateSelection.bind(this.templateManager));
+        this.dom.templateModal.addEventListener('click', this._handleTemplateModalClick.bind(this));
 
         this.dom.templateNameInput.addEventListener('input', (e) => {
             this.state.templateName = e.target.value;
@@ -1236,6 +1238,40 @@ class MagazineEditor {
         }
     }
 
+    _handleTemplateModalClick(e) {
+        const actionTarget = e.target.closest('[data-action]');
+        
+        if (actionTarget) {
+            e.stopPropagation(); // Prevent template selection when clicking a button
+            const action = actionTarget.dataset.action;
+            const templateIndexStr = actionTarget.dataset.templateIndex || actionTarget.closest('[data-template-index]')?.dataset.templateIndex;
+            
+            switch(action) {
+                case 'request-template-delete': {
+                    const templateIndex = parseInt(templateIndexStr, 10);
+                    if (!isNaN(templateIndex)) this.templateManager._renderModalDeleteConfirmation(templateIndex);
+                    break;
+                }
+                case 'confirm-template-delete': {
+                    const templateIndex = parseInt(templateIndexStr, 10);
+                    if (!isNaN(templateIndex)) this.templateManager._performSoftDelete(templateIndex);
+                    break;
+                }
+                case 'cancel-template-delete':
+                    this.templateManager._removeModalDeleteConfirmation();
+                    break;
+            }
+            return;
+        }
+    
+        const container = e.target.closest('.template-preview-container');
+        if (container && container.dataset.templateIndex) {
+            const index = parseInt(container.dataset.templateIndex, 10);
+            this.templateManager.loadTemplate(index);
+            this.templateManager._closeTemplateModal();
+        }
+    }
+
     _editImageHandler(el) {
         const source = el.originalSrc || el.src;
         if (!source) return;
@@ -1813,45 +1849,60 @@ class MagazineEditor {
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             const ctx = canvas.getContext('2d');
-            
-            ctx.drawImage(img, 0, 0);
 
+            // Calculate clipping shape's position relative to the image
             const scaleX = img.naturalWidth / targetImageEl.width;
             const scaleY = img.naturalHeight / targetImageEl.height;
 
-            const ellipseCenterX = (clipEl.position.x + clipEl.width / 2 - targetImageEl.position.x) * scaleX;
-            const ellipseCenterY = (clipEl.position.y + clipEl.height / 2 - targetImageEl.position.y) * scaleY;
-            const radiusX = (clipEl.width / 2) * scaleX;
-            const radiusY = (clipEl.height / 2) * scaleY;
-            const rotationRad = clipEl.rotation * (Math.PI / 180);
+            const clipRelativeX = (clipEl.position.x - targetImageEl.position.x) * scaleX;
+            const clipRelativeY = (clipEl.position.y - targetImageEl.position.y) * scaleY;
+            const clipRelativeWidth = clipEl.width * scaleX;
+            const clipRelativeHeight = clipEl.height * scaleY;
 
-            ctx.globalCompositeOperation = 'destination-out';
-            
-            ctx.save();
-            ctx.translate(ellipseCenterX, ellipseCenterY);
-            ctx.rotate(rotationRad);
+            // Define the clipping path
             ctx.beginPath();
-            ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.restore();
+            if (clipEl.shape === 'ellipse') {
+                ctx.ellipse(
+                    clipRelativeX + clipRelativeWidth / 2,
+                    clipRelativeY + clipRelativeHeight / 2,
+                    clipRelativeWidth / 2,
+                    clipRelativeHeight / 2,
+                    0, 0, 2 * Math.PI
+                );
+            }
+            ctx.closePath();
+            ctx.clip(); // Apply the clip
 
-            const newDataUrl = canvas.toDataURL('image/png');
-            
-            this.state.elements = this.state.elements
-                .map(el => el.id === targetImageEl.id ? { ...el, src: newDataUrl } : el)
-                .filter(el => el.id !== clipEl.id);
+            // Draw the image inside the clipped region
+            ctx.drawImage(img, 0, 0);
 
-            this.state.selectedElementId = null;
+            const clippedDataUrl = canvas.toDataURL('image/png');
+
+            // Update the target image element
+            const preClipState = this._getStateSnapshot();
+            const imageToUpdate = this.state.elements.find(e => e.id === targetImageEl.id);
+            if (imageToUpdate) {
+                imageToUpdate.src = clippedDataUrl;
+                // We might want to reset cropData as it's a new image source
+                imageToUpdate.cropData = null; 
+            }
+
+            // Remove the clipping shape element
+            this.state.elements = this.state.elements.filter(el => el.id !== clipEl.id);
+
+            // Update selection and re-render
+            this.state.selectedElementId = targetImageEl.id;
+            this.history.addState(preClipState);
             this._setDirty(true);
             this.render();
         };
-        img.onerror = () => {
-            alert('שגיאה בטעינת התמונה לחיתוך.');
-        };
+
         img.src = targetImageEl.src;
     }
-}
 
+} // --- End of MagazineEditor class ---
+
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     new MagazineEditor();
 });
