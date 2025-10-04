@@ -147,7 +147,20 @@ export class ImageEditor {
        
         if (targetElement.cropData) {
             this.state.zoom = Math.max(minZoom, Math.min(maxZoom, targetElement.cropData.zoom));
-            this.state.pan = targetElement.cropData.pan;
+
+            if (targetElement.cropData.sX !== undefined && targetElement.cropData.sY !== undefined) {
+                // New, robust method using invariant coordinates
+                this.state.pan = {
+                    x: this.state.frameOffset.left - (targetElement.cropData.sX * this.state.zoom),
+                    y: this.state.frameOffset.top - (targetElement.cropData.sY * this.state.zoom)
+                };
+            } else if (targetElement.cropData.pan) {
+                // Legacy support for old templates, may not be perfectly centered if aspect ratio changed.
+                this.state.pan = targetElement.cropData.pan;
+            }
+
+            this._clampImagePan(); // Ensure pan is within valid bounds for the current view
+            
             this.state.filters = { ...targetElement.cropData.filters };
              if (targetElement.cropData.colorSwap) {
                 const sources = targetElement.cropData.colorSwap.sources || (targetElement.cropData.colorSwap.source ? [targetElement.cropData.colorSwap.source] : []);
@@ -436,7 +449,7 @@ export class ImageEditor {
         }
 
         const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, pan, filters, colorSwap, blurData: shouldApplyBlur ? { points: brushMaskPoints } : null, frameData };
+        const cropData = { zoom, sX, sY, filters, colorSwap, blurData: shouldApplyBlur ? { points: brushMaskPoints } : null, frameData };
         this.editor.updateSelectedElement({ src: dataUrl, cropData });
         if (this.state) { this.state.preUploadState = null; }
         this.close();
