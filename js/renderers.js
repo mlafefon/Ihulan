@@ -305,7 +305,7 @@ const _createDeleteButton = () => {
     const button = document.createElement('button');
     button.dataset.action = "delete";
     button.className = "w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg";
-    button.textContent = "מחק אלמנט";
+    button.textContent = "מחק רכיב";
     return button;
 }
 
@@ -320,9 +320,9 @@ const _createEditorHeaderFragment = (el) => {
         const idEditorDiv = document.createElement('div');
         idEditorDiv.className = "mt-4";
         idEditorDiv.innerHTML = `
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-1">ID של האלמנט</label>
-                <input type="text" data-property="id" value="${el.id}" class="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;" />
+            <div class="flex items-center justify-between gap-3">
+                <label class="text-sm font-medium text-slate-300 whitespace-nowrap">ID של רכיב</label>
+                <input type="text" data-property="id" value="${el.id}" class="flex-1 bg-slate-700 border border-slate-600 text-white rounded-md p-2" style="text-align: left; direction: ltr;" />
             </div>`;
         headerWrapper.appendChild(idEditorDiv);
     }
@@ -508,10 +508,33 @@ export function renderSidebar(selectedEl, sidebarEditorHeader, sidebarContent, t
     sidebarEditorHeader.innerHTML = '';
     sidebarContent.innerHTML = '';
 
+    // Reset classes to default state, which will be adjusted if needed
+    sidebarContent.className = 'hidden flex-grow overflow-y-auto pr-2 space-y-4 min-h-[200px] sidebar-scroll-container';
+
     if (selectedEl) {
         sidebarEditorHeader.appendChild(_createEditorHeaderFragment(selectedEl));
-        sidebarContent.appendChild(_createEditorControlsFragment(selectedEl));
         
+        if (selectedEl.type === 'text') {
+            // Special layout: flex column, scrollable accordion, fixed buttons
+            sidebarContent.className = 'hidden flex-grow flex flex-col overflow-hidden min-h-[200px]'; // Remove scroll/space classes from parent
+
+            const scrollablePart = document.createElement('div');
+            // This part gets the scrollbar and padding.
+            scrollablePart.className = 'flex-grow overflow-y-auto pr-2 min-h-0 sidebar-scroll-container'; 
+            scrollablePart.appendChild(_createTextEditorControls(selectedEl));
+
+            const fixedPart = document.createElement('div');
+            fixedPart.className = 'flex-shrink-0';
+            fixedPart.appendChild(_createLayerControls());
+            fixedPart.appendChild(_createDeleteButton());
+
+            sidebarContent.appendChild(scrollablePart);
+            sidebarContent.appendChild(fixedPart);
+        } else {
+             // Original behavior for other elements
+            sidebarContent.appendChild(_createEditorControlsFragment(selectedEl));
+        }
+
         sidebarEditorHeader.classList.remove('hidden');
         sidebarContent.classList.remove('hidden');
         templateActions.classList.add('hidden');
