@@ -1,8 +1,3 @@
-
-
-
-
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage } from './js/services.js';
@@ -319,6 +314,7 @@ class MagazineEditor {
     }
     
     _bindEvents() {
+        this.dom.mainEditorContainer.addEventListener('click', this._handleMainContainerClick.bind(this));
         this.dom.elementImageUploadInput.addEventListener('change', this._handleElementImageUpload.bind(this));
         this.dom.changeTemplateBtn.addEventListener('click', this.templateManager._openTemplateModal.bind(this.templateManager));
         this.dom.importTemplateBtn.addEventListener('click', () => this.dom.importTemplateInput.click());
@@ -396,6 +392,22 @@ class MagazineEditor {
                 e.returnValue = '';
             }
         });
+    }
+
+    _handleMainContainerClick(e) {
+        // If the click originated inside the sidebar or the cover boundary, do nothing.
+        // Let their specific event handlers manage the interaction.
+        if (
+            this.dom.sidebar.contains(e.target) ||
+            this.dom.coverBoundary.contains(e.target)
+        ) {
+            return;
+        }
+    
+        // If an element is selected, deselect it. This will also reset the sidebar.
+        if (this.state.selectedElementId) {
+            this._deselectAndCleanup();
+        }
     }
 
     async _displayVersion() {
