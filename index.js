@@ -1,10 +1,5 @@
 
 
-
-
-
-
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
@@ -204,22 +199,20 @@ class MagazineEditor {
     }
 
     async _initAuthAndLoadData() {
-        // 1. Get current session. This will wait for Supabase to validate any existing session.
+        // 1. Get current session.
         const { data: { session } } = await supabaseClient.auth.getSession();
         this.user = session?.user || null;
         
-        // 2. Load templates based on the initial user state.
+        // 2. Load and display the default template immediately on startup.
+        await this._loadDefaultTemplate();
+        
+        // 3. Load all other templates for the modal in the background.
         await this.templateManager._loadAllTemplates();
     
-        // 3. Render the initial state of the app
-        if (this.templateManager.templates.length > 0) {
-            this.templateManager.loadTemplate(0);
-        } else {
-            this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא נטענו תבניות.</p>';
-        }
-        this._renderAuthState(); // Render auth UI *after* we know the user
+        // 4. Render the initial auth state.
+        this._renderAuthState();
     
-        // 4. Set up listener for SUBSEQUENT auth changes (login/logout).
+        // 5. Set up listener for subsequent auth changes.
         supabaseClient.auth.onAuthStateChange(async (_event, newSession) => {
             const currentUser = this.user;
             const newUser = newSession?.user || null;
@@ -228,31 +221,46 @@ class MagazineEditor {
                 this.user = newUser;
                 this._renderAuthState();
     
+                const currentTemplateIndex = this.state.templateIndex;
+                const currentTemplate = currentTemplateIndex !== null ? this.templateManager.templates[currentTemplateIndex] : null;
+
                 if (newUser) { // User logged IN
-                    // Reload templates from server to get user-specific ones.
                     await this.templateManager._loadAllTemplates();
                 } else { // User logged OUT
-                    // Just filter out user templates from the existing in-memory list. No network call needed.
                     this.templateManager.templates = this.templateManager.templates.filter(t => !t.isUserTemplate);
-                }
-                
-                // After templates are updated (either by fetch or filter), load the first available one.
-                if (this.templateManager.templates.length > 0) {
-                    this.templateManager.loadTemplate(0);
-                } else {
-                    // Clear the canvas if no templates are available after the change.
-                    this.state.elements = [];
-                    this.state.backgroundColor = '#334155';
-                    this.state.templateName = 'תבנית חדשה';
-                    this.state.selectedElementId = null;
-                    this.state.inlineEditingElementId = null;
-                    this.dom.templateNameInput.value = 'תבנית חדשה';
-                    this.render();
-                    this.history.clear();
-                    this._setDirty(false);
+                    
+                    const currentTemplateStillExists = currentTemplate && this.templateManager.templates.some(t => t.name === currentTemplate.name && !t.isUserTemplate);
+
+                    if (!currentTemplateStillExists) {
+                        const firstPublicIndex = this.templateManager.templates.findIndex(t => t.name.toLowerCase() !== 'default');
+                        if (firstPublicIndex !== -1) {
+                            this.templateManager.loadTemplate(firstPublicIndex);
+                        } else {
+                            await this._loadDefaultTemplate();
+                        }
+                    }
                 }
             }
         });
+    }
+
+    async _loadDefaultTemplate() {
+        try {
+            const response = await fetch('templates/default.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const templateData = await response.json();
+            if (this._isValidTemplate(templateData)) {
+                this.templateManager._loadTemplateData(templateData, { isInitialLoad: true, fromPreloadedList: false, templateIndex: null });
+            } else {
+                console.error("Default template file is invalid.");
+                this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">תבנית ברירת המחדל פגומה.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load default template:', error);
+            this.dom.coverBoundary.innerHTML = '<p class="p-4 text-center text-slate-400">לא ניתן היה לטעון את תבנית ברירת המחדל.</p>';
+        }
     }
     
     _renderAuthState() {
@@ -1871,7 +1879,6 @@ class MagazineEditor {
                 const options = {
                     pixelRatio: 2,
                     fontEmbedCSS: embeddedFontCSS,
-                    cacheBust: true,
                     backgroundColor: 'transparent',
                 };
                 

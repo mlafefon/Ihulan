@@ -374,86 +374,98 @@ export class ImageEditor {
 
     async _handleConfirm() {
         if (!this.state) return;
-        this.editor.history.addState(this.state.preEditEditorState);
-        const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints, frameData } = this.state;
+        try {
+            this.editor.history.addState(this.state.preEditEditorState);
+            const { image, targetElement, zoom, pan, frameOffset, filters, colorSwap, isBlurred, brushMaskPoints, frameData } = this.state;
+            
+            const shouldApplyBlur = isBlurred || (brushMaskPoints && brushMaskPoints.length > 0);
         
-        const shouldApplyBlur = isBlurred || (brushMaskPoints && brushMaskPoints.length > 0);
-    
-        let finalCanvas = document.createElement('canvas');
-        finalCanvas.width = targetElement.width;
-        finalCanvas.height = targetElement.height;
-        const ctx = finalCanvas.getContext('2d');
-        
-        let sourceForProcessing = new Image();
-        sourceForProcessing.src = this.state.imageUrl;
-        await new Promise(resolve => sourceForProcessing.onload = resolve);
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = sourceForProcessing.naturalWidth;
-        tempCanvas.height = sourceForProcessing.naturalHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(sourceForProcessing, 0, 0);
-
-        if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            this._applyColorSwapToImageData(imageData, colorSwap);
-            tempCtx.putImageData(imageData, 0, 0);
-        }
-        
-        const sX = (frameOffset.left - pan.x) / zoom;
-        const sY = (frameOffset.top - pan.y) / zoom;
-        const sW = this.dom.previewFrame.offsetWidth / zoom;
-        const sH = this.dom.previewFrame.offsetHeight / zoom;
-    
-        if (shouldApplyBlur) {
-            const sharpCanvas = document.createElement('canvas'); sharpCanvas.width = finalCanvas.width; sharpCanvas.height = finalCanvas.height; const sharpCtx = sharpCanvas.getContext('2d'); sharpCtx.filter = this._getFilterString(); sharpCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, sharpCanvas.width, sharpCanvas.height);
-            const blurredCanvas = document.createElement('canvas'); blurredCanvas.width = finalCanvas.width; blurredCanvas.height = finalCanvas.height; const blurredCtx = blurredCanvas.getContext('2d'); blurredCtx.filter = `blur(4px) ${this._getFilterString()}`; blurredCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, blurredCanvas.width, blurredCanvas.height);
-            const maskCanvas = document.createElement('canvas'); maskCanvas.width = finalCanvas.width; maskCanvas.height = finalCanvas.height; const maskCtx = maskCanvas.getContext('2d');
-            const scale = finalCanvas.width / this.dom.blurCanvas.width; this._renderBrushMask(maskCtx, finalCanvas.width, finalCanvas.height, true, brushMaskPoints, scale);
-            ctx.drawImage(blurredCanvas, 0, 0); sharpCtx.globalCompositeOperation = 'destination-in'; sharpCtx.drawImage(maskCanvas, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(sharpCanvas, 0, 0);
-        } else {
-            ctx.filter = this._getFilterString();
-            ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
-        }
-        
-        if (frameData && frameData.width > 0 && frameData.style !== 'none') {
-            const fw = frameData.width;
-            ctx.strokeStyle = frameData.color;
-            ctx.lineCap = 'butt';
-            switch (frameData.style) {
-                case 'dashed':
-                    ctx.lineWidth = fw;
-                    ctx.setLineDash([fw * 2, fw]);
-                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
-                    break;
-                case 'dotted':
-                    ctx.lineWidth = fw;
-                    ctx.lineCap = 'round';
-                    ctx.setLineDash([0, fw * 1.5]);
-                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
-                    break;
-                case 'double':
-                    ctx.lineWidth = Math.max(1, Math.floor(fw / 3));
-                    const lw = ctx.lineWidth;
-                    ctx.setLineDash([]);
-                    ctx.strokeRect(lw / 2, lw / 2, finalCanvas.width - lw, finalCanvas.height - lw);
-                    ctx.strokeRect(fw - lw / 2, fw - lw / 2, finalCanvas.width - (2 * fw - lw), finalCanvas.height - (2 * fw - lw));
-                    break;
-                case 'solid':
-                default:
-                    ctx.lineWidth = fw;
-                    ctx.setLineDash([]);
-                    ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
-                    break;
+            let finalCanvas = document.createElement('canvas');
+            finalCanvas.width = targetElement.width;
+            finalCanvas.height = targetElement.height;
+            const ctx = finalCanvas.getContext('2d');
+            
+            let sourceForProcessing = new Image();
+            if (!this.state.imageUrl.startsWith('data:')) {
+                sourceForProcessing.crossOrigin = 'Anonymous';
             }
-        }
+            sourceForProcessing.src = this.state.imageUrl;
+            await new Promise((resolve, reject) => {
+                sourceForProcessing.onload = resolve;
+                sourceForProcessing.onerror = reject;
+            });
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sourceForProcessing.naturalWidth;
+            tempCanvas.height = sourceForProcessing.naturalHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(sourceForProcessing, 0, 0);
 
-        const dataUrl = finalCanvas.toDataURL('image/png');
-        const cropData = { zoom, sX, sY, filters, colorSwap, blurData: shouldApplyBlur ? { points: brushMaskPoints } : null, frameData };
-        this.editor.updateSelectedElement({ src: dataUrl, cropData });
-        if (this.state) { this.state.preUploadState = null; }
-        this.close();
-        this.editor._renderSidebarAndPreserveAccordion();
+            if (colorSwap && colorSwap.sources && colorSwap.sources.length > 0) {
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                this._applyColorSwapToImageData(imageData, colorSwap);
+                tempCtx.putImageData(imageData, 0, 0);
+            }
+            
+            const sX = (frameOffset.left - pan.x) / zoom;
+            const sY = (frameOffset.top - pan.y) / zoom;
+            const sW = this.dom.previewFrame.offsetWidth / zoom;
+            const sH = this.dom.previewFrame.offsetHeight / zoom;
+        
+            if (shouldApplyBlur) {
+                const sharpCanvas = document.createElement('canvas'); sharpCanvas.width = finalCanvas.width; sharpCanvas.height = finalCanvas.height; const sharpCtx = sharpCanvas.getContext('2d'); sharpCtx.filter = this._getFilterString(); sharpCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, sharpCanvas.width, sharpCanvas.height);
+                const blurredCanvas = document.createElement('canvas'); blurredCanvas.width = finalCanvas.width; blurredCanvas.height = finalCanvas.height; const blurredCtx = blurredCanvas.getContext('2d'); blurredCtx.filter = `blur(4px) ${this._getFilterString()}`; blurredCtx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, blurredCanvas.width, blurredCanvas.height);
+                const maskCanvas = document.createElement('canvas'); maskCanvas.width = finalCanvas.width; maskCanvas.height = finalCanvas.height; const maskCtx = maskCanvas.getContext('2d');
+                const scale = finalCanvas.width / this.dom.blurCanvas.width; this._renderBrushMask(maskCtx, finalCanvas.width, finalCanvas.height, true, brushMaskPoints, scale);
+                ctx.drawImage(blurredCanvas, 0, 0); sharpCtx.globalCompositeOperation = 'destination-in'; sharpCtx.drawImage(maskCanvas, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(sharpCanvas, 0, 0);
+            } else {
+                ctx.filter = this._getFilterString();
+                ctx.drawImage(tempCanvas, sX, sY, sW, sH, 0, 0, finalCanvas.width, finalCanvas.height);
+            }
+            
+            if (frameData && frameData.width > 0 && frameData.style !== 'none') {
+                const fw = frameData.width;
+                ctx.strokeStyle = frameData.color;
+                ctx.lineCap = 'butt';
+                switch (frameData.style) {
+                    case 'dashed':
+                        ctx.lineWidth = fw;
+                        ctx.setLineDash([fw * 2, fw]);
+                        ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                        break;
+                    case 'dotted':
+                        ctx.lineWidth = fw;
+                        ctx.lineCap = 'round';
+                        ctx.setLineDash([0, fw * 1.5]);
+                        ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                        break;
+                    case 'double':
+                        ctx.lineWidth = Math.max(1, Math.floor(fw / 3));
+                        const lw = ctx.lineWidth;
+                        ctx.setLineDash([]);
+                        ctx.strokeRect(lw / 2, lw / 2, finalCanvas.width - lw, finalCanvas.height - lw);
+                        ctx.strokeRect(fw - lw / 2, fw - lw / 2, finalCanvas.width - (2 * fw - lw), finalCanvas.height - (2 * fw - lw));
+                        break;
+                    case 'solid':
+                    default:
+                        ctx.lineWidth = fw;
+                        ctx.setLineDash([]);
+                        ctx.strokeRect(fw / 2, fw / 2, finalCanvas.width - fw, finalCanvas.height - fw);
+                        break;
+                }
+            }
+
+            const dataUrl = finalCanvas.toDataURL('image/png');
+            const cropData = { zoom, sX, sY, filters, colorSwap, blurData: shouldApplyBlur ? { points: brushMaskPoints } : null, frameData };
+            this.editor.updateSelectedElement({ src: dataUrl, cropData });
+            if (this.state) { this.state.preUploadState = null; }
+            this.close();
+            this.editor._renderSidebarAndPreserveAccordion();
+        } catch (error) {
+            console.error('Error during image confirmation:', error);
+            this.editor.showNotification('שגיאה בעיבוד התמונה. ייתכן שהתמונה אינה זמינה.', 'error');
+            this.close();
+        }
     }
 
     _updateColorSwapUI() {

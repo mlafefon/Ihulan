@@ -3,6 +3,7 @@
 
 
 
+
 import { renderCoverElement } from '../renderers.js';
 import { exportTemplate } from '../services.js';
 
@@ -47,6 +48,33 @@ export class TemplateManager {
         }
     }
 
+    _loadTemplateData(templateData, options = {}) {
+        const { isInitialLoad = false, fromPreloadedList = false, templateIndex = null } = options;
+
+        if (this.editor.historyRecordingSuspended) return;
+        const elementsWithDefaults = this.editor._applyDefaultElementProperties(templateData.elements);
+        
+        this.editor.state = {
+            ...this.editor.state,
+            templateIndex: fromPreloadedList ? templateIndex : null,
+            elements: elementsWithDefaults,
+            backgroundColor: templateData.backgroundColor,
+            selectedElementId: null,
+            inlineEditingElementId: null,
+            templateName: templateData.name,
+            coverWidth: templateData.width || 700,
+            coverHeight: templateData.height || 906,
+        };
+        this.editor.dom.templateNameInput.value = templateData.name;
+        this.editor.dom.templateWidthInput.value = this.editor.state.coverWidth;
+        this.editor.dom.templateHeightInput.value = this.editor.state.coverHeight;
+
+        this.editor._updateCoverDimensions();
+        
+        this.editor._setDirty(!isInitialLoad && !fromPreloadedList);
+        this.editor.history.clear();
+        this.editor.render();
+    }
 
     loadTemplate(index) {
         if (this.editor.historyRecordingSuspended) return;
@@ -55,30 +83,7 @@ export class TemplateManager {
             console.error(`תבנית באינדקס ${index} אינה קיימת.`);
             return;
         }
-
-        // Deep copy and apply defaults
-        const elementsWithDefaults = this.editor._applyDefaultElementProperties(template.elements);
-        
-        this.editor.state = {
-            ...this.editor.state,
-            templateIndex: index,
-            elements: elementsWithDefaults,
-            backgroundColor: template.backgroundColor,
-            selectedElementId: null,
-            inlineEditingElementId: null,
-            templateName: template.name,
-            coverWidth: template.width || 700,
-            coverHeight: template.height || 906,
-        };
-        this.editor.dom.templateNameInput.value = template.name;
-        this.editor.dom.templateWidthInput.value = this.editor.state.coverWidth;
-        this.editor.dom.templateHeightInput.value = this.editor.state.coverHeight;
-
-        this.editor._updateCoverDimensions();
-        
-        this.editor._setDirty(false);
-        this.editor.history.clear();
-        this.editor.render();
+        this._loadTemplateData(template, { fromPreloadedList: true, templateIndex: index });
     }
 
     _handleTemplateImport(e) {
@@ -95,8 +100,6 @@ export class TemplateManager {
 
                 if (this.editor._isValidTemplate(templateData)) {
                     this._loadTemplateFromFileData(templateData);
-                    // Immediately save the template so it appears in the list
-                    this.saveUserTemplate();
                 } else {
                     this.editor.showNotification('קובץ התבנית אינו תקין או שאינו מכיל את כל המאפיינים הנדרשים.', 'error');
                 }
@@ -111,28 +114,9 @@ export class TemplateManager {
 
     _loadTemplateFromFileData(templateData) {
         if (this.editor.historyRecordingSuspended) return;
-        const elementsWithDefaults = this.editor._applyDefaultElementProperties(templateData.elements);
-        
-        this.editor.state = {
-            ...this.editor.state,
-            templateIndex: null, // Not from the pre-loaded list
-            elements: elementsWithDefaults,
-            backgroundColor: templateData.backgroundColor,
-            selectedElementId: null,
-            inlineEditingElementId: null,
-            templateName: templateData.name,
-            coverWidth: templateData.width || 700,
-            coverHeight: templateData.height || 906,
-        };
-        this.editor.dom.templateNameInput.value = templateData.name;
-        this.editor.dom.templateWidthInput.value = this.editor.state.coverWidth;
-        this.editor.dom.templateHeightInput.value = this.editor.state.coverHeight;
-
-        this.editor._updateCoverDimensions();
-        
-        this.editor._setDirty(true); // Mark as dirty since it's a new, unsaved state
-        this.editor.history.clear();
-        this.editor.render();
+        this._loadTemplateData(templateData);
+        // Immediately save the template so it appears in the list
+        this.saveUserTemplate();
     }
     
     async saveUserTemplate() {
@@ -258,6 +242,9 @@ export class TemplateManager {
     _openTemplateModal() {
         this.editor.dom.templateGrid.innerHTML = '';
         this.templates.forEach((template, index) => {
+            if (template.name && template.name.toLowerCase() === 'default') {
+                return; // Skip rendering the default template
+            }
             const previewEl = this._createTemplatePreview(template, index);
             this.editor.dom.templateGrid.appendChild(previewEl);
         });

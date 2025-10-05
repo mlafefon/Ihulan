@@ -84,7 +84,7 @@ export async function exportImage(button, coverBoundary, state, editor) {
             // Use pixelRatio for better resolution, which is often more stable than manual scaling.
             pixelRatio: 2,
             backgroundColor: state.backgroundColor,
-            cacheBust: true,
+            // cacheBust: true, // This can cause CORS issues by forcing re-fetches without CORS headers.
             fontEmbedCSS: embeddedFontCSS,
         };
         
