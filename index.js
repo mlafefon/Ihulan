@@ -1,5 +1,6 @@
 
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
@@ -344,7 +345,7 @@ class AppManager {
 
         const { error, count } = await supabaseClient
             .from('templates')
-            .update({ is_active: false })
+            .update({ is_active: false }, { count: 'exact' })
             .eq('user_id', this.user.id)
             .eq('name', template.name);
 
