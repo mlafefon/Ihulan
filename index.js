@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
@@ -65,6 +66,7 @@ class AppManager {
         this.dom = {
             mainHeader: document.getElementById('main-header'),
             headerAuthContainer: document.getElementById('header-auth-container'),
+            logoBtn: document.getElementById('logo-btn'),
             newDesignBtn: document.getElementById('new-design-btn'),
             backToTemplatesBtn: document.getElementById('back-to-templates-btn'),
 
@@ -109,6 +111,11 @@ class AppManager {
             this.showView('templates');
         });
         
+        this.dom.logoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showView('templates');
+        });
+
         this.dom.newDesignBtn.addEventListener('click', (e) => {
             e.preventDefault();
             this.launchEditor(null);
@@ -130,12 +137,14 @@ class AppManager {
             case 'templates':
                 this.dom.templatesView.classList.remove('hidden');
                 this.dom.mainHeader.classList.remove('hidden');
+                this.dom.backToTemplatesBtn.classList.add('hidden');
                 this.renderHeaderAuth();
                 this.renderTemplatesGrid();
                 break;
             case 'editor':
                 this.dom.editorView.classList.remove('hidden');
                 this.dom.mainHeader.classList.remove('hidden');
+                this.dom.backToTemplatesBtn.classList.remove('hidden');
                 this.renderHeaderAuth();
                 break;
         }
@@ -153,14 +162,26 @@ class AppManager {
 
     // --- Auth Rendering & Actions ---
     renderHeaderAuth() {
-        if (!this.user) return;
+        if (!this.user) {
+            this.dom.headerAuthContainer.innerHTML = '';
+            return;
+        }
+    
+        const email = this.user.email;
+        const nameParts = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ').split(' ');
+        let initials = ((nameParts[0]?.[0] || '') + (nameParts.length > 1 ? nameParts[nameParts.length - 1][0] : '')).toUpperCase();
+        if (!initials || initials.length > 2) {
+            initials = email.substring(0, 2).toUpperCase();
+        }
+    
         this.dom.headerAuthContainer.innerHTML = `
-            <div class="flex items-center gap-2">
-                <img src="${this.user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.user.email)}&background=random&color=fff`}" alt="User Avatar" class="user-avatar h-10 w-10">
-                <button data-auth-action="logout" class="sidebar-btn-icon bg-slate-700 hover:bg-slate-600" title="יציאה">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13v-2H7v-2h9V5l4 3.5-4 3.5zM20 3h-9c-1.103 0-2 .897-2 2v4h2V5h9v14h-9v-4H9v4c0 1.103.897 2 2 2h9c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2z"/></svg>
-                </button>
+            <span class="user-email text-slate-300 text-sm hidden sm:block">${email}</span>
+            <div class="user-avatar-display">
+               ${initials}
             </div>
+            <button data-auth-action="logout" class="header-icon-btn" title="יציאה">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13v-2H7v-2h9V5l4 3.5-4 3.5zM20 3h-9c-1.103 0-2 .897-2 2v4h2V5h9v14h-9v-4H9v4c0 1.103.897 2 2 2h9c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2z"/></svg>
+            </button>
         `;
         this.dom.headerAuthContainer.querySelector('[data-auth-action="logout"]').addEventListener('click', () => supabaseClient.auth.signOut());
     }
