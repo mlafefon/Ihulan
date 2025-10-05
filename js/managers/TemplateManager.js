@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import { renderCoverElement } from '../renderers.js';
 import { exportTemplate } from '../services.js';
 
@@ -14,7 +9,7 @@ export class TemplateManager {
         this.templates = [];
     }
 
-    async _loadAllTemplates() {
+    async _loadAllTemplates(user) {
         try {
             // Fetch public templates (user_id is null)
             const { data: publicData, error: publicError } = await this.supabase
@@ -28,12 +23,13 @@ export class TemplateManager {
             const publicTemplates = publicData.map(item => ({ ...item.template_data, isUserTemplate: false }));
             
             let userTemplates = [];
-            if (this.editor.user) {
+            const currentUser = user || this.editor?.user;
+            if (currentUser) {
                 // Fetch user-specific templates that are active
                 const { data: userData, error: userError } = await this.supabase
                     .from('templates')
                     .select('template_data')
-                    .eq('user_id', this.editor.user.id)
+                    .eq('user_id', currentUser.id)
                     .eq('is_active', true); // Only load active templates
                 
                 if (userError) throw userError;
@@ -182,7 +178,7 @@ export class TemplateManager {
         } else {
             this.editor.showNotification(`התבנית "${name}" נשמרה בהצלחה!`, 'success');
             this.editor._setDirty(false);
-            await this._loadAllTemplates();
+            await this._loadAllTemplates(this.editor.user);
         }
     }
     
@@ -209,7 +205,7 @@ export class TemplateManager {
                 
                 const wasCurrentTemplate = this.editor.state.templateIndex === templateIndex;
                 
-                await this._loadAllTemplates();
+                await this._loadAllTemplates(this.editor.user);
                 this._openTemplateModal(); // Refresh the modal with the updated list
 
                 if (wasCurrentTemplate) {
@@ -230,7 +226,7 @@ export class TemplateManager {
                 }
             } else {
                 this.editor.showNotification(`לא נמצאה תבנית למחיקה בשם "${templateName}". ייתכן שהיא כבר נמחקה.`, 'error');
-                await this._loadAllTemplates();
+                await this._loadAllTemplates(this.editor.user);
                 this._openTemplateModal();
             }
         }
@@ -277,8 +273,10 @@ export class TemplateManager {
     
         const scale = 180 / (template.width || 700);
     
+        const previewState = this.editor?.state || { selectedElementId: null, inlineEditingElementId: null };
+
         template.elements.forEach((el, elIndex) => {
-            const domEl = renderCoverElement(el, this.editor.state, scale, elIndex);
+            const domEl = renderCoverElement(el, previewState, scale, elIndex);
             cover.appendChild(domEl);
         });
     
