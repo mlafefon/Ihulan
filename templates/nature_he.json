@@ -1,0 +1,58 @@
+
+{
+    "name": "Eretz VeTeva",
+    "width": 700,
+    "height": 906,
+    "backgroundColor": "#ffffff",
+    "elements": [
+        {
+            "id": "el_178001",
+            "type": "image",
+            "src": "https://images.unsplash.com/photo-1559213237-922a7216c59b?q=80&w=1935&auto=format&fit=crop",
+            "position": { "x": 0, "y": 0 },
+            "width": 700,
+            "height": 906
+        },
+        {
+            "id": "el_178002",
+            "type": "text",
+            "text": "ארץ וטבע",
+            "position": { "x": 350, "y": 30 },
+            "width": 300,
+            "height": 70,
+            "fontSize": 64,
+            "fontFamily": "David Libre",
+            "fontWeight": 700,
+            "color": "#ffffff",
+            "textAlign": "right"
+        },
+        {
+            "id": "el_178003",
+            "type": "text",
+            "text": "מסע במדבר",
+            "position": { "x": 50, "y": 700 },
+            "width": 600,
+            "height": 100,
+            "fontSize": 96,
+            "fontFamily": "Heebo",
+            "fontWeight": 900,
+            "color": "#ffffff",
+            "textAlign": "center",
+            "shadow": true
+        },
+        {
+            "id": "el_178004",
+            "type": "text",
+            "text": "הפריחה המרהיבה של הצפון • שמורות טבע נסתרות",
+            "position": { "x": 100, "y": 820 },
+            "width": 500,
+            "height": 40,
+            "fontSize": 20,
+            "fontFamily": "Heebo",
+            "fontWeight": 400,
+            "color": "#ffffff",
+            "textAlign": "center",
+            "shadow": true
+        }
+    ]
+}

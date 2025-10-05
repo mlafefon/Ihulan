@@ -120,6 +120,8 @@ class AppManager {
             e.preventDefault();
             this.launchEditor(null);
         });
+
+        this.dom.templatesGridContainer.addEventListener('click', this.handleTemplateGridClick.bind(this));
     }
 
     showView(viewName) {
@@ -128,6 +130,9 @@ class AppManager {
         this.dom.templatesView.classList.add('hidden');
         this.dom.editorView.classList.add('hidden');
         this.dom.mainHeader.classList.add('hidden');
+
+        // Scroll to top on view change
+        window.scrollTo(0, 0);
 
         switch (viewName) {
             case 'landing':
@@ -259,11 +264,101 @@ class AppManager {
         this.templateManager.templates.forEach((template, index) => {
             if (template.name && template.name.toLowerCase() === 'default') return;
             const previewEl = this.templateManager._createTemplatePreview(template, index);
-            previewEl.addEventListener('click', () => this.launchEditor(template));
             grid.appendChild(previewEl);
         });
         this.dom.templatesGridContainer.innerHTML = '';
         this.dom.templatesGridContainer.appendChild(grid);
+    }
+    
+    handleTemplateGridClick(e) {
+        const target = e.target;
+
+        const confirmBtn = target.closest('[data-action="confirm-template-delete"]');
+        if (confirmBtn) {
+            e.stopPropagation();
+            const templateIndex = parseInt(confirmBtn.dataset.templateIndex, 10);
+            this._performSoftDelete(templateIndex);
+            return;
+        }
+
+        const cancelBtn = target.closest('[data-action="cancel-template-delete"]');
+        if (cancelBtn) {
+            e.stopPropagation();
+            this._removeDeleteConfirmationUI();
+            return;
+        }
+        
+        const deleteBtn = target.closest('.template-delete-btn');
+        if (deleteBtn) {
+            e.stopPropagation();
+            const container = deleteBtn.closest('.template-preview-container');
+            const templateIndex = parseInt(container.dataset.templateIndex, 10);
+            this._renderDeleteConfirmationUI(container, templateIndex);
+            return;
+        }
+
+        const container = target.closest('.template-preview-container');
+        if (container) {
+            if(container.querySelector('.template-delete-confirmation')) {
+                return;
+            }
+            const templateIndex = parseInt(container.dataset.templateIndex, 10);
+            const template = this.templateManager.templates[templateIndex];
+            if (template) {
+                this.launchEditor(template);
+            }
+        }
+    }
+    
+    _renderDeleteConfirmationUI(container, templateIndex) {
+        this._removeDeleteConfirmationUI();
+        const template = this.templateManager.templates[templateIndex];
+        if (!template) return;
+
+        const confirmationDiv = document.createElement('div');
+        confirmationDiv.className = 'template-delete-confirmation';
+        confirmationDiv.innerHTML = `
+            <p class="text-slate-300 text-sm">למחוק את <strong>"${template.name}"</strong>?</p>
+            <div class="flex gap-2 w-full mt-3">
+                <button data-action="cancel-template-delete" class="sidebar-btn bg-slate-600 hover:bg-slate-500 text-xs flex-1">ביטול</button>
+                <button data-action="confirm-template-delete" data-template-index="${templateIndex}" class="sidebar-btn bg-red-600 hover:bg-red-700 text-xs flex-1">מחק</button>
+            </div>
+        `;
+        container.appendChild(confirmationDiv);
+    }
+
+    _removeDeleteConfirmationUI() {
+        const existing = this.dom.templatesGridContainer.querySelector('.template-delete-confirmation');
+        if (existing) {
+            existing.remove();
+        }
+    }
+
+    async _performSoftDelete(templateIndex) {
+        if (!this.user) {
+            this.showNotification('עליך להתחבר כדי למחוק תבניות.', 'error');
+            return;
+        }
+        const template = this.templateManager.templates[templateIndex];
+        if (!template || !template.isUserTemplate) return;
+
+        const { error, count } = await supabaseClient
+            .from('templates')
+            .update({ is_active: false })
+            .eq('user_id', this.user.id)
+            .eq('name', template.name);
+
+        if (error) {
+            this.showNotification(`שגיאה במחיקת התבנית: ${error.message}`, 'error');
+        } else if (count > 0) {
+            this.showNotification(`התבנית "${template.name}" נמחקה.`, 'success');
+            this.templateManager.templates.splice(templateIndex, 1);
+            this.renderTemplatesGrid();
+        } else {
+             this.showNotification(`לא נמצאה תבנית למחיקה.`, 'error');
+             await this.templateManager._loadAllTemplates(this.user);
+             this.renderTemplatesGrid();
+        }
     }
 
     // --- Editor ---

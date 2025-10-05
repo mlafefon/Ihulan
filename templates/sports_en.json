@@ -1,0 +1,57 @@
+
+{
+    "name": "The Arena",
+    "width": 700,
+    "height": 906,
+    "backgroundColor": "#111827",
+    "elements": [
+        {
+            "id": "el_175001",
+            "type": "image",
+            "src": "https://images.unsplash.com/photo-1541252260730-0412e8e2108e?q=80&w=1887&auto=format&fit=crop",
+            "position": { "x": 0, "y": 0 },
+            "width": 700,
+            "height": 906
+        },
+        {
+            "id": "el_175002",
+            "type": "text",
+            "text": "THE ARENA",
+            "position": { "x": 50, "y": 780 },
+            "width": 600,
+            "height": 100,
+            "fontSize": 110,
+            "fontFamily": "Anton",
+            "fontWeight": 400,
+            "color": "#ffffff",
+            "textAlign": "center"
+        },
+        {
+            "id": "el_175003",
+            "type": "text",
+            "text": "CHAMPION MINDSET",
+            "position": { "x": 350, "y": 50 },
+            "width": 300,
+            "height": 100,
+            "fontSize": 40,
+            "fontFamily": "Heebo",
+            "fontWeight": 900,
+            "color": "#ffffff",
+            "textAlign": "right",
+            "shadow": true
+        },
+        {
+            "id": "el_175004",
+            "type": "text",
+            "text": "THE RACE OF A LIFETIME",
+            "position": { "x": 350, "y": 150 },
+            "width": 300,
+            "height": 30,
+            "fontSize": 18,
+            "fontFamily": "Heebo",
+            "fontWeight": 400,
+            "color": "#ffffff",
+            "textAlign": "right"
+        }
+    ]
+}

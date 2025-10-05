@@ -1,0 +1,56 @@
+
+{
+    "name": "Wanderlust",
+    "width": 700,
+    "height": 906,
+    "backgroundColor": "#e0e0e0",
+    "elements": [
+        {
+            "id": "el_173001",
+            "type": "image",
+            "src": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop",
+            "position": { "x": 0, "y": 0 },
+            "width": 700,
+            "height": 600
+        },
+        {
+            "id": "el_173002",
+            "type": "text",
+            "text": "WANDERLUST",
+            "position": { "x": 50, "y": 620 },
+            "width": 600,
+            "height": 100,
+            "fontSize": 90,
+            "fontFamily": "Anton",
+            "fontWeight": 400,
+            "color": "#000000",
+            "textAlign": "center"
+        },
+        {
+            "id": "el_173003",
+            "type": "text",
+            "text": "UNSEEN ALPS",
+            "position": { "x": 150, "y": 720 },
+            "width": 400,
+            "height": 60,
+            "fontSize": 54,
+            "fontFamily": "Heebo",
+            "fontWeight": 700,
+            "color": "#333333",
+            "textAlign": "center"
+        },
+        {
+            "id": "el_173004",
+            "type": "text",
+            "text": "A Journey Through The Peaks",
+            "position": { "x": 200, "y": 790 },
+            "width": 300,
+            "height": 30,
+            "fontSize": 22,
+            "fontFamily": "Assistant",
+            "fontWeight": 400,
+            "color": "#555555",
+            "textAlign": "center"
+        }
+    ]
+}

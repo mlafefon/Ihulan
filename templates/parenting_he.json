@@ -1,0 +1,56 @@
+
+{
+    "name": "Horim VeYeladim",
+    "width": 700,
+    "height": 906,
+    "backgroundColor": "#f0fdf4",
+    "elements": [
+        {
+            "id": "el_179001",
+            "type": "image",
+            "src": "https://images.unsplash.com/photo-1503919545889-aef636e1064d?q=80&w=1887&auto=format&fit=crop",
+            "position": { "x": 0, "y": 0 },
+            "width": 700,
+            "height": 906
+        },
+        {
+            "id": "el_179002",
+            "type": "text",
+            "text": "הורים וילדים",
+            "position": { "x": 300, "y": 40 },
+            "width": 350,
+            "height": 80,
+            "fontSize": 72,
+            "fontFamily": "Playpen Sans",
+            "fontWeight": 800,
+            "color": "#2563eb",
+            "textAlign": "right"
+        },
+        {
+            "id": "el_179003",
+            "type": "text",
+            "text": "איך לגדל ילדים מאושרים?",
+            "position": { "x": 100, "y": 700 },
+            "width": 500,
+            "height": 60,
+            "fontSize": 48,
+            "fontFamily": "Heebo",
+            "fontWeight": 700,
+            "color": "#000000",
+            "textAlign": "center"
+        },
+        {
+            "id": "el_179004",
+            "type": "text",
+            "text": "משחקים שמפתחים את הדמיון",
+            "position": { "x": 200, "y": 770 },
+            "width": 300,
+            "height": 30,
+            "fontSize": 20,
+            "fontFamily": "Heebo",
+            "fontWeight": 400,
+            "color": "#1f2937",
+            "textAlign": "center"
+        }
+    ]
+}
