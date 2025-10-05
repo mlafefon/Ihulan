@@ -253,7 +253,8 @@ export class TemplateManager {
 
     _createTemplatePreview(template, index) {
         const container = document.createElement('div');
-        container.className = 'template-preview-container cursor-pointer p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors';
+        // Add flex properties to center the inner wrapper
+        container.className = 'template-preview-container cursor-pointer p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors flex items-center justify-center';
         container.dataset.templateIndex = index;
         
         if (template.isUserTemplate) {
@@ -265,7 +266,11 @@ export class TemplateManager {
             deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
             container.appendChild(deleteBtn);
         }
-
+    
+        // This new wrapper will be 75% width and centered by the flex container
+        const innerWrapper = document.createElement('div');
+        innerWrapper.style.width = '75%';
+    
         const cover = document.createElement('div');
         cover.className = 'relative w-full overflow-hidden shadow-md';
         cover.style.aspectRatio = `${template.width || 700} / ${template.height || 906}`;
@@ -274,7 +279,7 @@ export class TemplateManager {
         const scale = 180 / (template.width || 700);
     
         const previewState = this.editor?.state || { selectedElementId: null, inlineEditingElementId: null };
-
+    
         template.elements.forEach((el, elIndex) => {
             const domEl = renderCoverElement(el, previewState, scale, elIndex);
             cover.appendChild(domEl);
@@ -284,8 +289,10 @@ export class TemplateManager {
         name.className = 'text-center text-sm mt-2 text-slate-300';
         name.textContent = template.name;
     
-        container.appendChild(cover);
-        container.appendChild(name);
+        innerWrapper.appendChild(cover);
+        innerWrapper.appendChild(name);
+        container.appendChild(innerWrapper);
+        
         return container;
     }
     
