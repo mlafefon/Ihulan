@@ -187,16 +187,20 @@ export class TemplateManager {
     }
     
     async _performSoftDelete(templateIndex) {
-        if (!this.editor.user) { return; }
+        if (!this.editor.user) {
+            this.editor.showNotification('עליך להתחבר כדי למחוק תבניות.', 'error');
+            return;
+        }
         
         const currentTemplate = this.templates[templateIndex];
         if (!currentTemplate || !currentTemplate.isUserTemplate) { return; }
     
         const templateName = currentTemplate.name;
     
-        const { error, count } = await this.supabase
+        // The fix: remove `count` check and rely only on the error object.
+        const { error } = await this.supabase
             .from('templates')
-            .update({ is_active: false }, { count: 'exact' })
+            .update({ is_active: false })
             .eq('user_id', this.editor.user.id)
             .eq('name', templateName);
     
@@ -204,34 +208,29 @@ export class TemplateManager {
             console.error('Error soft-deleting template from Supabase:', error);
             this.editor.showNotification(`שגיאה במחיקת התבנית: ${error.message}`, 'error');
         } else {
-            if (count > 0) {
-                this.editor.showNotification(`התבנית "${templateName}" נמחקה בהצלחה.`, 'success');
-                
-                const wasCurrentTemplate = this.editor.state.templateIndex === templateIndex;
-                
-                await this._loadAllTemplates(this.editor.user);
-                this._openTemplateModal(); // Refresh the modal with the updated list
+            // If there is no error, the operation was successful.
+            this.editor.showNotification(`התבנית "${templateName}" נמחקה בהצלחה.`, 'success');
+            
+            const wasCurrentTemplate = this.editor.state.templateIndex === templateIndex;
+            
+            await this._loadAllTemplates(this.editor.user);
+            this._openTemplateModal(); // Refresh the modal with the updated list
 
-                if (wasCurrentTemplate) {
-                    if (this.templates.length > 0) {
-                        this.loadTemplate(0);
-                    } else {
-                        // Logic for when no templates are left
-                        this.editor.state.elements = [];
-                        this.editor.state.backgroundColor = '#334155';
-                        this.editor.state.templateName = 'תבנית חדשה';
-                        this.editor.state.selectedElementId = null;
-                        this.editor.state.inlineEditingElementId = null;
-                        this.editor.dom.templateNameInput.value = 'תבנית חדשה';
-                        this.editor.render();
-                        this.editor.history.clear();
-                        this.editor._setDirty(false);
-                    }
+            if (wasCurrentTemplate) {
+                if (this.templates.length > 0) {
+                    this.loadTemplate(0);
+                } else {
+                    // Logic for when no templates are left
+                    this.editor.state.elements = [];
+                    this.editor.state.backgroundColor = '#334155';
+                    this.editor.state.templateName = 'תבנית חדשה';
+                    this.editor.state.selectedElementId = null;
+                    this.editor.state.inlineEditingElementId = null;
+                    this.editor.dom.templateNameInput.value = 'תבנית חדשה';
+                    this.editor.render();
+                    this.editor.history.clear();
+                    this.editor._setDirty(false);
                 }
-            } else {
-                this.editor.showNotification(`לא נמצאה תבנית למחיקה בשם "${templateName}". ייתכן שהיא כבר נמחקה.`, 'error');
-                await this._loadAllTemplates(this.editor.user);
-                this._openTemplateModal();
             }
         }
     }

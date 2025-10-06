@@ -365,6 +365,12 @@ class AppManager {
     
         const container = target.closest('.template-preview-container');
     
+        // BUGFIX: Prevent clicks inside the confirmation dialog (but not on its buttons)
+        // from being treated as a click on the template itself.
+        if (container && target.closest('.template-delete-confirmation')) {
+            return;
+        }
+    
         if (container) {
             e.stopPropagation();
             const templateIndex = parseInt(container.dataset.templateIndex, 10);
@@ -404,26 +410,32 @@ class AppManager {
             this.showNotification('עליך להתחבר כדי למחוק תבניות.', 'error');
             return;
         }
-        const template = this.templateManager.templates[templateIndex];
-        if (!template || !template.isUserTemplate) return;
-
-        const { error, count } = await supabaseClient
-            .from('templates')
-            .update({ is_active: false }, { count: 'exact' })
-            .eq('user_id', this.user.id)
-            .eq('name', template.name);
-
-        if (error) {
-            this.showNotification(`שגיאה במחיקת התבנית: ${error.message}`, 'error');
-        } else if (count > 0) {
+        try {
+            const template = this.templateManager.templates[templateIndex];
+            if (!template || !template.isUserTemplate) {
+                console.warn('Delete cancelled: template not found or not a user template.');
+                return;
+            }
+    
+            // The fix: remove `.select()` and `count`, just check for error.
+            const { error } = await supabaseClient
+                .from('templates')
+                .update({ is_active: false })
+                .eq('user_id', this.user.id)
+                .eq('name', template.name);
+    
+            if (error) {
+                throw error;
+            }
+            
+            // If there's no error, we assume success.
             this.showNotification(`התבנית "${template.name}" נמחקה.`, 'success');
-            // Remove from local list and re-render
             this.templateManager.templates.splice(templateIndex, 1);
             this.renderTemplatesGrid();
-        } else {
-             this.showNotification(`לא נמצאה תבנית למחיקה.`, 'error');
-             await this.templateManager._loadAllTemplates(this.user);
-             this.renderTemplatesGrid();
+            
+        } catch (err) {
+            console.error('An unexpected error occurred during template deletion:', err);
+            this.showNotification(`שגיאה לא צפויה במחיקת התבנית: ${err.message}`, 'error');
         }
     }
 
