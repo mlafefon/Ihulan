@@ -110,13 +110,38 @@
         <!-- Templates Page View -->
         <div id="templates-view" class="hidden pb-12">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="mb-8 flex justify-between items-center">
-                    <div>
-                        <h2 class="text-3xl font-bold text-white">שערי מגזין</h2>
-                        <p class="mt-2 text-slate-400">חקרו את אוסף התבניות שלנו כדי למצוא את העיצוב המושלם עבורכם. התאימו אותו אישית ועצבו אותו כשכם.</p>
-                    </div>
-                    <button id="new-design-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700 px-5 py-2 whitespace-nowrap">עיצוב חדש</button>
+                <!-- NEW: Redesigned page header -->
+                <div class="py-8 text-center">
+                    <h2 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">בחר את העיצוב שלך</h2>
+                    <p class="mt-4 text-xl text-slate-400">התחל מתבנית מוכנה או צור עיצוב חדש מאפס.</p>
                 </div>
+                
+                <!-- NEW: Redesigned controls bar -->
+                <div class="mb-8 flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-800/50 rounded-xl">
+                    <!-- Right side: Tabs & Search -->
+                    <div class="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                        <div id="template-tabs" class="flex p-1 bg-slate-700/80 rounded-lg">
+                            <button data-tab="public" class="template-tab active">תבניות ציבוריות</button>
+                            <button data-tab="user" class="template-tab hidden">התבניות שלי</button>
+                        </div>
+                        <div class="relative w-full sm:max-w-xs">
+                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                <svg class="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <input type="search" id="template-search-input" placeholder="חיפוש..." class="template-search-input w-full">
+                        </div>
+                    </div>
+                    <!-- Left side: New Design Button -->
+                    <button id="new-design-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700 px-5 py-2.5 w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                           <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                         </svg>
+                         <span>עיצוב חדש</span>
+                    </button>
+                </div>
+
                 <div id="templates-grid-container" class="mt-8">
                      <!-- Template previews will be injected here -->
                 </div>

@@ -1,4 +1,5 @@
 
+
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
@@ -56,6 +57,8 @@ class AppManager {
         this.user = null;
         this.editorInstance = null;
         this.templateManager = new TemplateManager(supabaseClient);
+        this.activeTemplateTab = 'public';
+        this.templateSearchTerm = '';
         this.cacheDom();
         this.bindAppEvents();
         this.init();
@@ -75,6 +78,8 @@ class AppManager {
 
             templatesView: document.getElementById('templates-view'),
             templatesGridContainer: document.getElementById('templates-grid-container'),
+            templateTabs: document.getElementById('template-tabs'),
+            templateSearchInput: document.getElementById('template-search-input'),
             
             editorView: document.getElementById('main-editor-container'),
             versionContainer: document.getElementById('version-container'),
@@ -121,6 +126,8 @@ class AppManager {
         });
 
         this.dom.templatesGridContainer.addEventListener('click', this.handleTemplateGridClick.bind(this));
+        this.dom.templateTabs.addEventListener('click', this.handleTabClick.bind(this));
+        this.dom.templateSearchInput.addEventListener('input', this.handleSearchInput.bind(this));
     }
 
     showView(viewName) {
@@ -143,6 +150,9 @@ class AppManager {
                 this.dom.mainHeader.classList.remove('hidden');
                 this.dom.backToTemplatesBtn.classList.add('hidden');
                 this.renderHeaderAuth();
+                this.dom.templateSearchInput.value = ''; // Reset search UI
+                this.templateSearchTerm = ''; // Reset search state
+                this.activeTemplateTab = 'public'; // Reset tab state
                 this.renderTemplatesGrid();
                 break;
             case 'editor':
@@ -251,27 +261,84 @@ class AppManager {
     }
 
     // --- Templates View ---
-    renderTemplatesGrid() {
-        const grid = document.createElement('div');
-        grid.className = 'templates-grid';
+    handleTabClick(e) {
+        const tabButton = e.target.closest('.template-tab');
+        if (!tabButton) return;
         
-        if (this.templateManager.templates.length === 0 && this.user) {
-            this.dom.templatesGridContainer.innerHTML = `<p class="text-slate-400">עדיין אין לך עיצובים שמורים. לחץ על "עיצוב חדש" כדי להתחיל!</p>`;
+        const tabName = tabButton.dataset.tab;
+        if (this.activeTemplateTab === tabName) return;
+
+        if (tabName === 'user' && !this.user) {
+            this.showNotification('עליך להתחבר כדי לראות את התבניות שלך.', 'error');
+            return;
+        }
+
+        this.activeTemplateTab = tabName;
+        this.renderTemplatesGrid();
+    }
+    
+    handleSearchInput(e) {
+        this.templateSearchTerm = e.target.value.toLowerCase().trim();
+        this.renderTemplatesGrid();
+    }
+
+    renderTemplatesGrid() {
+        const userTab = this.dom.templateTabs.querySelector('[data-tab="user"]');
+        if (this.user) {
+            userTab.classList.remove('hidden');
+        } else {
+            userTab.classList.add('hidden');
+            if (this.activeTemplateTab === 'user') {
+                this.activeTemplateTab = 'public';
+            }
+        }
+    
+        this.dom.templateTabs.querySelectorAll('.template-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === this.activeTemplateTab);
+        });
+    
+        const isUserTab = this.activeTemplateTab === 'user';
+        const filteredTemplates = this.templateManager.templates.filter(template => {
+            if (template.name && template.name.toLowerCase() === 'default') return false;
+            
+            const matchesTab = isUserTab ? template.isUserTemplate : !template.isUserTemplate;
+            if (!matchesTab) return false;
+            
+            return this.templateSearchTerm
+                ? template.name.toLowerCase().includes(this.templateSearchTerm)
+                : true;
+        });
+    
+        this.dom.templatesGridContainer.innerHTML = '';
+    
+        if (filteredTemplates.length === 0) {
+            let message = 'לא נמצאו תבניות התואמות את החיפוש.';
+            if (!this.templateSearchTerm) {
+                message = isUserTab
+                    ? 'עדיין אין לך עיצובים שמורים. לחץ על "עיצוב חדש" כדי להתחיל!'
+                    : 'לא נמצאו תבניות ציבוריות כרגע.';
+            }
+            this.dom.templatesGridContainer.innerHTML = `<p class="text-slate-400 col-span-full">${message}</p>`;
             return;
         }
         
-        this.templateManager.templates.forEach((template, index) => {
-            if (template.name && template.name.toLowerCase() === 'default') return;
-            const previewEl = this.templateManager._createTemplatePreview(template, index);
-            grid.appendChild(previewEl);
+        const grid = document.createElement('div');
+        grid.className = 'templates-grid';
+        
+        filteredTemplates.forEach(template => {
+            const originalIndex = this.templateManager.templates.indexOf(template);
+            if (originalIndex > -1) {
+                const previewEl = this.templateManager._createTemplatePreview(template, originalIndex);
+                grid.appendChild(previewEl);
+            }
         });
-        this.dom.templatesGridContainer.innerHTML = '';
+    
         this.dom.templatesGridContainer.appendChild(grid);
     }
     
     handleTemplateGridClick(e) {
         const target = e.target;
-
+    
         const confirmBtn = target.closest('[data-action="confirm-template-delete"]');
         if (confirmBtn) {
             e.stopPropagation();
@@ -279,7 +346,7 @@ class AppManager {
             this._performSoftDelete(templateIndex);
             return;
         }
-
+    
         const cancelBtn = target.closest('[data-action="cancel-template-delete"]');
         if (cancelBtn) {
             e.stopPropagation();
@@ -295,12 +362,11 @@ class AppManager {
             this._renderDeleteConfirmationUI(container, templateIndex);
             return;
         }
-
+    
         const container = target.closest('.template-preview-container');
+    
         if (container) {
-            if(container.querySelector('.template-delete-confirmation')) {
-                return;
-            }
+            e.stopPropagation();
             const templateIndex = parseInt(container.dataset.templateIndex, 10);
             const template = this.templateManager.templates[templateIndex];
             if (template) {
@@ -351,6 +417,7 @@ class AppManager {
             this.showNotification(`שגיאה במחיקת התבנית: ${error.message}`, 'error');
         } else if (count > 0) {
             this.showNotification(`התבנית "${template.name}" נמחקה.`, 'success');
+            // Remove from local list and re-render
             this.templateManager.templates.splice(templateIndex, 1);
             this.renderTemplatesGrid();
         } else {

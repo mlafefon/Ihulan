@@ -257,10 +257,9 @@ export class TemplateManager {
 
     _createTemplatePreview(template, index) {
         const container = document.createElement('div');
-        // Add flex properties to center the inner wrapper
-        container.className = 'template-preview-container cursor-pointer p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition-colors flex items-center justify-center';
+        container.className = 'template-preview-container cursor-pointer bg-slate-800 rounded-lg shadow-md';
         container.dataset.templateIndex = index;
-        
+    
         if (template.isUserTemplate) {
             container.classList.add('user-template');
             const deleteBtn = document.createElement('button');
@@ -271,16 +270,15 @@ export class TemplateManager {
             container.appendChild(deleteBtn);
         }
     
-        // This new wrapper will be 75% width and centered by the flex container
-        const innerWrapper = document.createElement('div');
-        innerWrapper.style.width = '75%';
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'p-3';
     
         const cover = document.createElement('div');
-        cover.className = 'relative w-full overflow-hidden shadow-md';
+        cover.className = 'relative w-full overflow-hidden shadow-inner rounded-md';
         cover.style.aspectRatio = `${template.width || 700} / ${template.height || 906}`;
         cover.style.backgroundColor = template.backgroundColor;
     
-        const scale = 180 / (template.width || 700);
+        const scale = 240 / (template.width || 700);
     
         const previewState = this.editor?.state || { selectedElementId: null, inlineEditingElementId: null };
     
@@ -288,14 +286,18 @@ export class TemplateManager {
             const domEl = renderCoverElement(el, previewState, scale, elIndex);
             cover.appendChild(domEl);
         });
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'template-preview-overlay';
+        cover.appendChild(overlay);
     
         const name = document.createElement('p');
-        name.className = 'text-center text-sm mt-2 text-slate-300';
+        name.className = 'text-center text-sm mt-3 font-semibold text-slate-300 truncate';
         name.textContent = template.name;
     
-        innerWrapper.appendChild(cover);
-        innerWrapper.appendChild(name);
-        container.appendChild(innerWrapper);
+        contentWrapper.appendChild(cover);
+        contentWrapper.appendChild(name);
+        container.appendChild(contentWrapper);
         
         return container;
     }
