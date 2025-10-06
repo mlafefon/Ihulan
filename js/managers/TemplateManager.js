@@ -3,10 +3,14 @@ import { renderCoverElement } from '../renderers.js';
 import { exportTemplate } from '../services.js';
 
 export class TemplateManager {
-    constructor(editor, supabaseClient) {
-        this.editor = editor;
+    constructor(supabaseClient) {
+        this.editor = null;
         this.supabase = supabaseClient;
         this.templates = [];
+    }
+
+    setEditorContext(editor) {
+        this.editor = editor;
     }
 
     async _loadAllTemplates(user) {

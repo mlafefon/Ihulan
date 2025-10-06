@@ -1,6 +1,4 @@
 
-
-
 import { renderCoverElement, renderSidebar } from './js/renderers.js';
 import { ImageEditor } from './js/ImageEditor.js';
 import { exportTemplate, exportImage, embedFontsInCss } from './js/services.js';
@@ -57,7 +55,7 @@ class AppManager {
     constructor() {
         this.user = null;
         this.editorInstance = null;
-        this.templateManager = new TemplateManager(null, supabaseClient);
+        this.templateManager = new TemplateManager(supabaseClient);
         this.cacheDom();
         this.bindAppEvents();
         this.init();
@@ -366,7 +364,7 @@ class AppManager {
     async launchEditor(templateData) {
         this.showView('editor');
         if (!this.editorInstance) {
-            this.editorInstance = new MagazineEditor(this);
+            this.editorInstance = new MagazineEditor(this, this.templateManager);
             await this.editorInstance.initOnce();
         }
         await this.editorInstance.loadNewTemplate(templateData, this.user);
@@ -398,8 +396,9 @@ class AppManager {
 
 // --- MAGAZINE EDITOR CLASS (MODIFIED FOR SPA) ---
 class MagazineEditor {
-    constructor(appManager) {
+    constructor(appManager, templateManager) {
         this.appManager = appManager;
+        this.templateManager = templateManager;
         this.state = {};
         this.user = null;
         this.interactionState = {};
@@ -415,7 +414,7 @@ class MagazineEditor {
         this.history = new HistoryManager(this);
         this.imageEditor = new ImageEditor(this);
         this.interactionManager = new InteractionManager(this);
-        this.templateManager = new TemplateManager(this, supabaseClient);
+        this.templateManager.setEditorContext(this);
         
         this.resizeObserver = new ResizeObserver(() => this.renderCover());
         this.resizeObserver.observe(this.dom.coverBoundary);
@@ -425,7 +424,6 @@ class MagazineEditor {
 
     async loadNewTemplate(templateData, user) {
         this.user = user;
-        this.templateManager.editor = this; // Ensure template manager has correct context
         
         // Use default template if none provided
         if (!templateData) {
